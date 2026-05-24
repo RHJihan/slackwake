@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Generic;
 using System.Windows;
+using System.Windows.Input;
 using SlackWake.Helpers;
 using SlackWake.Models;
 using SlackWake.Services;
@@ -46,6 +48,31 @@ public class MainViewModel : ObservableObject
             _slackConnectionStatus = s;
             RecomputeStatus();
         };
+
+        AvailableSounds = SoundLibrary.Enumerate();
+        _selectedSound = ResolveSelectedSound(_settings.SoundFilePath);
+
+        _preview = new PreviewPlayer();
+        _preview.IsPlayingChanged += (_, _) =>
+        {
+            // The play/pause glyph and the IsPlaying flag flip together — fire both
+            // notifications so any binding (button content, future state styling) updates.
+            Raise(nameof(IsPreviewPlaying));
+            Raise(nameof(PreviewButtonGlyph));
+        };
+        TogglePreviewCommand = new RelayCommand(TogglePreview);
+    }
+
+    private SoundLibrary.SoundOption ResolveSelectedSound(string path)
+    {
+        foreach (var s in AvailableSounds)
+        {
+            if (string.Equals(s.FilePath, path, StringComparison.OrdinalIgnoreCase))
+                return s;
+        }
+        // Saved path no longer exists (folder change, removed file) — fall back to the
+        // system-default entry, which we guarantee is always at index 0.
+        return AvailableSounds[0];
     }
 
     // ---- Two-way bindable properties ----
@@ -89,6 +116,109 @@ public class MainViewModel : ObservableObject
             StartupService.Set(value);
         }
     }
+
+    public bool SoundEnabled
+    {
+        get => _settings.SoundEnabled;
+        set
+        {
+            if (_settings.SoundEnabled == value) return;
+            _settings.SoundEnabled = value;
+            Raise();
+            Save();
+        }
+    }
+
+    public int SoundDelaySeconds
+    {
+        get => _settings.SoundDelaySeconds;
+        set
+        {
+            var clamped = Math.Clamp(value, 0, 120);
+            if (_settings.SoundDelaySeconds == clamped) return;
+            _settings.SoundDelaySeconds = clamped;
+            Raise();
+            Save();
+        }
+    }
+
+    public bool SoundLoop
+    {
+        get => _settings.SoundLoop;
+        set
+        {
+            if (_settings.SoundLoop == value) return;
+            _settings.SoundLoop = value;
+            Raise();
+            Save();
+        }
+    }
+
+    public bool SoundLoopMaxEnabled
+    {
+        get => _settings.SoundLoopMaxEnabled;
+        set
+        {
+            if (_settings.SoundLoopMaxEnabled == value) return;
+            _settings.SoundLoopMaxEnabled = value;
+            Raise();
+            Save();
+        }
+    }
+
+    public int SoundLoopMaxSeconds
+    {
+        get => _settings.SoundLoopMaxSeconds;
+        set
+        {
+            // Lower bound = 5s so the cap is meaningfully different from "just play once";
+            // upper bound = 600s (10 min) since past that point you're really asking for
+            // the loop to run until dismissed anyway.
+            var clamped = Math.Clamp(value, 5, 600);
+            if (_settings.SoundLoopMaxSeconds == clamped) return;
+            _settings.SoundLoopMaxSeconds = clamped;
+            Raise();
+            Save();
+        }
+    }
+
+    public IReadOnlyList<SoundLibrary.SoundOption> AvailableSounds { get; }
+
+    private SoundLibrary.SoundOption _selectedSound = null!;
+    public SoundLibrary.SoundOption SelectedSound
+    {
+        get => _selectedSound;
+        set
+        {
+            if (value == null || _selectedSound == value) return;
+            // Silence first — before we touch settings or notify the UI. The user's
+            // mental model is "I clicked a new item, the old sound stops now".
+            _preview.Stop();
+            _selectedSound = value;
+            _settings.SoundFilePath = value.FilePath;
+            Raise();
+            Save();
+        }
+    }
+
+    private readonly PreviewPlayer _preview;
+
+    public ICommand TogglePreviewCommand { get; }
+
+    public bool IsPreviewPlaying => _preview.IsPlaying;
+
+    // Unicode play / pause glyphs render in any font — no Segoe MDL2 dependency.
+    public string PreviewButtonGlyph => _preview.IsPlaying ? "⏸" : "▶";
+
+    private void TogglePreview()
+    {
+        if (_preview.IsPlaying)
+            _preview.Stop();
+        else
+            _preview.Play(_selectedSound.FilePath);
+    }
+
+    public AppSettings Settings => _settings;
 
     public string Status
     {

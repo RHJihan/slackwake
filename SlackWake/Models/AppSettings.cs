@@ -18,4 +18,26 @@ public class AppSettings
 
     /// <summary>When true, skip showing the settings window on launch (used when auto-started).</summary>
     public bool StartMinimized { get; set; } = false;
+
+    /// <summary>Play an audible alert in addition to showing the fullscreen overlay.</summary>
+    public bool SoundEnabled { get; set; } = true;
+
+    /// <summary>Seconds to wait after the overlay appears before the first sound plays. 0 = immediate.</summary>
+    public int SoundDelaySeconds { get; set; } = 5;
+
+    /// <summary>When true, keep replaying the alert sound until the user dismisses the overlay.</summary>
+    public bool SoundLoop { get; set; } = false;
+
+    /// <summary>When true, the loop self-stops after <see cref="SoundLoopMaxSeconds"/>.</summary>
+    public bool SoundLoopMaxEnabled { get; set; } = false;
+
+    /// <summary>Cap on total looping duration when <see cref="SoundLoopMaxEnabled"/> is on.</summary>
+    public int SoundLoopMaxSeconds { get; set; } = 60;
+
+    /// <summary>
+    /// Full path to the WAV file to play. Empty/null means use the built-in
+    /// <see cref="System.Media.SystemSounds.Exclamation"/> sound. The settings UI
+    /// populates this from C:\Windows\Media but any readable .wav path works.
+    /// </summary>
+    public string SoundFilePath { get; set; } = string.Empty;
 }

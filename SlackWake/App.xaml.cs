@@ -93,13 +93,32 @@ public partial class App : System.Windows.Application
         _overlayOpen = true;
         _activeOverlays.Clear();
 
+        // Snapshot sound settings once so every overlay in this fan-out agrees,
+        // even if the user toggles the settings mid-alert.
+        var soundEnabled = _vm?.Settings.SoundEnabled ?? false;
+        var soundDelay = _vm?.Settings.SoundDelaySeconds ?? 0;
+        var soundLoop = _vm?.Settings.SoundLoop ?? false;
+        var soundLoopMaxEnabled = _vm?.Settings.SoundLoopMaxEnabled ?? false;
+        var soundLoopMaxSeconds = _vm?.Settings.SoundLoopMaxSeconds ?? 60;
+        var soundPath = _vm?.Settings.SoundFilePath ?? string.Empty;
+
+        var first = true;
         foreach (var screen in Forms.Screen.AllScreens)
         {
             var bounds = screen.Bounds; // physical pixels
-            var w = new OverlayWindow(evt.Sender, evt.Channel, evt.Text)
+            var w = new OverlayWindow(
+                evt.Sender, evt.Channel, evt.Text,
+                soundEnabled, soundDelay,
+                soundLoop, soundLoopMaxEnabled, soundLoopMaxSeconds,
+                soundPath)
             {
                 WindowStartupLocation = WindowStartupLocation.Manual
             };
+
+            // Only the first overlay plays audio — otherwise N monitors = N
+            // overlapping streams of the same alert.
+            if (!first) w.SuppressSound();
+            first = false;
 
             // Show first so the HWND exists, then move with Win32 in physical pixels.
             // This avoids the WPF DIP/physical mismatch when monitors run at
