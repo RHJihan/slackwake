@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
+using System.Drawing;
 using System.Windows;
 using System.Windows.Interop;
 using SlackWake.Helpers;
@@ -18,6 +20,8 @@ namespace SlackWake;
 public partial class App : System.Windows.Application
 {
     private Forms.NotifyIcon? _tray;
+    private Icon? _iconActive;
+    private Icon? _iconInactive;
     private MainWindow? _settingsWindow;
     private MainViewModel? _vm;
 
@@ -59,9 +63,12 @@ public partial class App : System.Windows.Application
 
     private void InitTray()
     {
+        _iconActive = TrayIconFactory.CreateActive();
+        _iconInactive = TrayIconFactory.CreateInactive();
+
         _tray = new Forms.NotifyIcon
         {
-            Icon = System.Drawing.SystemIcons.Application,
+            Icon = _iconInactive,   // real state applied by SyncTrayState below
             Text = "SlackWake",
             Visible = true
         };
@@ -71,6 +78,26 @@ public partial class App : System.Windows.Application
         menu.Items.Add("Exit", null, (_, _) => Shutdown());
         _tray.ContextMenuStrip = menu;
         _tray.DoubleClick += (_, _) => ShowSettings();
+
+        if (_vm != null)
+        {
+            _vm.PropertyChanged += OnViewModelPropertyChanged;
+        }
+        SyncTrayState();
+    }
+
+    private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(MainViewModel.Enabled))
+            SyncTrayState();
+    }
+
+    private void SyncTrayState()
+    {
+        if (_tray == null || _vm == null) return;
+        var enabled = _vm.Enabled;
+        _tray.Icon = enabled ? _iconActive : _iconInactive;
+        _tray.Text = enabled ? "SlackWake — monitoring" : "SlackWake — paused";
     }
 
     private void ShowSettings()
@@ -146,12 +173,15 @@ public partial class App : System.Windows.Application
 
     protected override void OnExit(ExitEventArgs e)
     {
+        if (_vm != null) _vm.PropertyChanged -= OnViewModelPropertyChanged;
         _vm?.Stop();
         if (_tray != null)
         {
             _tray.Visible = false;
             _tray.Dispose();
         }
+        _iconActive?.Dispose();
+        _iconInactive?.Dispose();
         base.OnExit(e);
     }
 }
