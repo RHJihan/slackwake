@@ -7,21 +7,28 @@ namespace SlackWake.Helpers;
 
 /// <summary>
 /// Renders the tray icons in-memory so we don't have to ship .ico assets. One bell
-/// silhouette, two treatments:
-///   - Active:   solid fill (monitoring is on)
-///   - Inactive: outlined with a diagonal slash (universal "muted" affordance)
+/// silhouette, three treatments:
+///   - Active:   solid white fill   (monitoring is on, user is at the keyboard)
+///   - Idle:     solid red fill     (monitoring is on AND user is idle — the
+///                                   next Slack ping will fire the overlay)
+///   - Inactive: outlined with a diagonal slash (monitoring disabled)
 /// Drawn at 32px with anti-aliasing — Windows downsamples to 16px cleanly. Pure
-/// white reads on the Win10/11 default dark taskbar.
+/// white reads on the Win10/11 default dark taskbar; pure red pops against it
+/// without losing contrast on a light taskbar either.
 /// </summary>
 internal static class TrayIconFactory
 {
     private const int Size = 32;
 
-    public static Icon CreateActive() => Render(active: true);
+    public enum TrayState { Active, Idle, Inactive }
 
-    public static Icon CreateInactive() => Render(active: false);
+    public static Icon CreateActive() => Render(TrayState.Active);
 
-    private static Icon Render(bool active)
+    public static Icon CreateIdle() => Render(TrayState.Idle);
+
+    public static Icon CreateInactive() => Render(TrayState.Inactive);
+
+    private static Icon Render(TrayState state)
     {
         using var bmp = new Bitmap(Size, Size, PixelFormat.Format32bppArgb);
         using (var g = Graphics.FromImage(bmp))
@@ -31,17 +38,12 @@ internal static class TrayIconFactory
             g.InterpolationMode = InterpolationMode.HighQualityBicubic;
 
             using var bell = BuildBellPath();
-            var color = Color.White;
 
-            if (active)
+            if (state == TrayState.Inactive)
             {
-                using var fill = new SolidBrush(color);
-                g.FillPath(fill, bell);
-            }
-            else
-            {
-                using var stroke = new Pen(color, 2.2f) { LineJoin = LineJoin.Round };
-                g.DrawPath(stroke, bell);
+                var stroke = Color.White;
+                using var pen = new Pen(stroke, 2.2f) { LineJoin = LineJoin.Round };
+                g.DrawPath(pen, bell);
 
                 // Punch a transparent gap along the slash line so it sits cleanly
                 // through the bell outline instead of doubling up the stroke.
@@ -54,12 +56,19 @@ internal static class TrayIconFactory
                 g.DrawLine(gap, 27f, 5f, 5f, 27f);
 
                 g.CompositingMode = CompositingMode.SourceOver;
-                using var slash = new Pen(color, 2.6f)
+                using var slash = new Pen(stroke, 2.6f)
                 {
                     StartCap = LineCap.Round,
                     EndCap = LineCap.Round,
                 };
                 g.DrawLine(slash, 27f, 5f, 5f, 27f);
+            }
+            else
+            {
+                // Active = neutral monitoring; Idle = armed-and-about-to-fire.
+                var fillColor = state == TrayState.Idle ? Color.Red : Color.White;
+                using var fill = new SolidBrush(fillColor);
+                g.FillPath(fill, bell);
             }
         }
 

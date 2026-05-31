@@ -21,6 +21,7 @@ public partial class App : System.Windows.Application
 {
     private Forms.NotifyIcon? _tray;
     private Icon? _iconActive;
+    private Icon? _iconIdle;
     private Icon? _iconInactive;
     private MainWindow? _settingsWindow;
     private MainViewModel? _vm;
@@ -64,6 +65,7 @@ public partial class App : System.Windows.Application
     private void InitTray()
     {
         _iconActive = TrayIconFactory.CreateActive();
+        _iconIdle = TrayIconFactory.CreateIdle();
         _iconInactive = TrayIconFactory.CreateInactive();
 
         _tray = new Forms.NotifyIcon
@@ -88,16 +90,33 @@ public partial class App : System.Windows.Application
 
     private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName == nameof(MainViewModel.Enabled))
+        if (e.PropertyName == nameof(MainViewModel.Enabled) ||
+            e.PropertyName == nameof(MainViewModel.IsIdle))
             SyncTrayState();
     }
 
     private void SyncTrayState()
     {
         if (_tray == null || _vm == null) return;
-        var enabled = _vm.Enabled;
-        _tray.Icon = enabled ? _iconActive : _iconInactive;
-        _tray.Text = enabled ? "SlackWake — monitoring" : "SlackWake — paused";
+
+        if (!_vm.Enabled)
+        {
+            _tray.Icon = _iconInactive;
+            _tray.Text = "SlackWake — paused";
+        }
+        else if (_vm.IsIdle)
+        {
+            // Idle = armed. Red icon flags that the next Slack ping will fire the
+            // overlay, giving the user an at-a-glance signal even without opening
+            // the settings window.
+            _tray.Icon = _iconIdle;
+            _tray.Text = "SlackWake — idle (overlay armed)";
+        }
+        else
+        {
+            _tray.Icon = _iconActive;
+            _tray.Text = "SlackWake — monitoring";
+        }
     }
 
     private void ShowSettings()
@@ -120,14 +139,19 @@ public partial class App : System.Windows.Application
         _overlayOpen = true;
         _activeOverlays.Clear();
 
-        // Snapshot sound settings once so every overlay in this fan-out agrees,
-        // even if the user toggles the settings mid-alert.
+        // Snapshot sound + flash settings once so every overlay in this fan-out
+        // agrees, even if the user toggles the settings mid-alert. The "alert
+        // delay" governs both sound and flash — they fire together.
         var soundEnabled = _vm?.Settings.SoundEnabled ?? false;
-        var soundDelay = _vm?.Settings.SoundDelaySeconds ?? 0;
+        var alertDelay = _vm?.Settings.SoundDelaySeconds ?? 0;
         var soundLoop = _vm?.Settings.SoundLoop ?? false;
         var soundLoopMaxEnabled = _vm?.Settings.SoundLoopMaxEnabled ?? false;
         var soundLoopMaxSeconds = _vm?.Settings.SoundLoopMaxSeconds ?? 60;
         var soundPath = _vm?.Settings.SoundFilePath ?? string.Empty;
+        var flashEnabled = _vm?.Settings.FlashEnabled ?? false;
+        var flashIntervalMs = _vm?.Settings.FlashIntervalMs ?? 500;
+        var flashColorA = ColorUtil.Parse(_vm?.Settings.FlashColorA ?? "#000000");
+        var flashColorB = ColorUtil.Parse(_vm?.Settings.FlashColorB ?? "#FFFFFF");
 
         var first = true;
         foreach (var screen in Forms.Screen.AllScreens)
@@ -135,9 +159,11 @@ public partial class App : System.Windows.Application
             var bounds = screen.Bounds; // physical pixels
             var w = new OverlayWindow(
                 evt.Sender, evt.Channel, evt.Text,
-                soundEnabled, soundDelay,
+                soundEnabled, alertDelay,
                 soundLoop, soundLoopMaxEnabled, soundLoopMaxSeconds,
-                soundPath)
+                soundPath,
+                flashEnabled, flashIntervalMs,
+                flashColorA, flashColorB)
             {
                 WindowStartupLocation = WindowStartupLocation.Manual
             };
@@ -181,6 +207,7 @@ public partial class App : System.Windows.Application
             _tray.Dispose();
         }
         _iconActive?.Dispose();
+        _iconIdle?.Dispose();
         _iconInactive?.Dispose();
         base.OnExit(e);
     }

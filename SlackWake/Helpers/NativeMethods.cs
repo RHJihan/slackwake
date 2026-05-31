@@ -34,4 +34,14 @@ internal static class NativeMethods
     [DllImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     public static extern bool DestroyIcon(IntPtr hIcon);
+
+    /// <summary>
+    /// Force a window to the foreground regardless of who currently owns input focus.
+    /// Needed for the overlay because Windows refuses normal Activate() from a tray
+    /// process that wasn't the foreground app — without this, the overlay appears on
+    /// top (Topmost=true) but keystrokes go to the previously-focused app.
+    /// </summary>
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool SetForegroundWindow(IntPtr hWnd);
 }

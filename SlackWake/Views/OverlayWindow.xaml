@@ -6,49 +6,59 @@
         ShowInTaskbar="False"
         Topmost="True"
         AllowsTransparency="True"
-        Background="#E6000000"
+        Background="{DynamicResource OverlayBackgroundBrush}"
         Cursor="Arrow"
         FontFamily="Segoe UI"
         KeyDown="Window_KeyDown"
         PreviewKeyDown="Window_KeyDown"
         MouseDown="Window_MouseDown"
         TextInput="Window_TextInput">
+    <Window.Resources>
+        <!-- Named brushes so the flash storyboard can swap colors at runtime
+             without rebuilding the visual tree. Foreground flips opposite to
+             background so the text stays readable in either flash state. -->
+        <SolidColorBrush x:Key="OverlayBackgroundBrush" Color="#E6000000"/>
+        <SolidColorBrush x:Key="OverlayForegroundBrush" Color="#FFFFFFFF"/>
+        <SolidColorBrush x:Key="OverlayMessageBoxBrush" Color="#22FFFFFF"/>
+        <SolidColorBrush x:Key="OverlayHintBrush" Color="#FF999999"/>
+    </Window.Resources>
     <Grid>
         <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" MaxWidth="1100">
 
             <TextBlock Text="Slack notification received"
                        FontSize="64"
                        FontWeight="Bold"
-                       Foreground="White"
+                       Foreground="{DynamicResource OverlayForegroundBrush}"
                        HorizontalAlignment="Center"
                        TextAlignment="Center"/>
 
             <TextBlock x:Name="ChannelText"
                        FontSize="40" FontWeight="SemiBold"
-                       Foreground="#FFFFFF"
+                       Foreground="{DynamicResource OverlayForegroundBrush}"
                        HorizontalAlignment="Center"
                        Margin="0,28,0,0"/>
 
             <TextBlock x:Name="SenderText"
                        FontSize="40" FontWeight="SemiBold"
-                       Foreground="#FFFFFF"
+                       Foreground="{DynamicResource OverlayForegroundBrush}"
                        HorizontalAlignment="Center"
                        Margin="0,8,0,0"/>
 
-            <Border Background="#22FFFFFF"
+            <Border Background="{DynamicResource OverlayMessageBoxBrush}"
                     CornerRadius="10"
                     Padding="24,16"
                     Margin="0,28,0,0">
                 <TextBlock x:Name="MessageText"
                            FontSize="20"
-                           Foreground="White"
+                           Foreground="{DynamicResource OverlayForegroundBrush}"
                            TextWrapping="Wrap"
                            HorizontalAlignment="Center"
                            TextAlignment="Center"/>
             </Border>
 
             <TextBlock Text="Press ESC, click, or type any key to dismiss"
-                       FontSize="14" Foreground="#999"
+                       FontSize="14"
+                       Foreground="{DynamicResource OverlayHintBrush}"
                        HorizontalAlignment="Center"
                        Margin="0,40,0,0"/>
         </StackPanel>

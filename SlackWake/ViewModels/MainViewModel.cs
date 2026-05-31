@@ -2,9 +2,12 @@ using System;
 using System.Collections.Generic;
 using System.Windows;
 using System.Windows.Input;
+using System.Windows.Media;
 using SlackWake.Helpers;
 using SlackWake.Models;
 using SlackWake.Services;
+using Brush = System.Windows.Media.Brush;
+using Forms = System.Windows.Forms;
 
 namespace SlackWake.ViewModels;
 
@@ -61,6 +64,24 @@ public class MainViewModel : ObservableObject
             Raise(nameof(PreviewButtonGlyph));
         };
         TogglePreviewCommand = new RelayCommand(TogglePreview);
+        PickFlashColorACommand = new RelayCommand(() => PickFlashColor(isA: true));
+        PickFlashColorBCommand = new RelayCommand(() => PickFlashColor(isA: false));
+        TestOverlayCommand = new RelayCommand(TestOverlay);
+    }
+
+    public ICommand TestOverlayCommand { get; }
+
+    private void TestOverlay()
+    {
+        // Bypass the enabled + isIdle gate that real Slack events go through —
+        // the user clicked "Test" specifically to preview the overlay with the
+        // current settings, so suppressing it would defeat the purpose.
+        var sample = new SlackEvent(
+            Sender: "Test user",
+            Channel: "#slackwake-test",
+            Text: "This is a preview of your SlackWake overlay. Press ESC, click, "
+                + "or type any key to dismiss.");
+        _showOverlay(sample);
     }
 
     private SoundLibrary.SoundOption ResolveSelectedSound(string path)
@@ -97,7 +118,14 @@ public class MainViewModel : ObservableObject
         {
             // Lower bound prevents nuisance-fast triggers; upper bound just a sanity guard.
             var clamped = Math.Clamp(value, 10, 7200);
-            if (_settings.IdleTimeoutSeconds == clamped) return;
+            if (_settings.IdleTimeoutSeconds == clamped)
+            {
+                // Input was clamped to the already-stored value (e.g., user typed
+                // "5" but the floor is 10). The TextBox is still showing the raw
+                // input — force a target refresh so the display snaps to bounds.
+                if (value != clamped) Raise();
+                return;
+            }
             _settings.IdleTimeoutSeconds = clamped;
             Raise();
             Save();
@@ -135,7 +163,11 @@ public class MainViewModel : ObservableObject
         set
         {
             var clamped = Math.Clamp(value, 0, 120);
-            if (_settings.SoundDelaySeconds == clamped) return;
+            if (_settings.SoundDelaySeconds == clamped)
+            {
+                if (value != clamped) Raise();
+                return;
+            }
             _settings.SoundDelaySeconds = clamped;
             Raise();
             Save();
@@ -175,11 +207,106 @@ public class MainViewModel : ObservableObject
             // upper bound = 600s (10 min) since past that point you're really asking for
             // the loop to run until dismissed anyway.
             var clamped = Math.Clamp(value, 5, 600);
-            if (_settings.SoundLoopMaxSeconds == clamped) return;
+            if (_settings.SoundLoopMaxSeconds == clamped)
+            {
+                if (value != clamped) Raise();
+                return;
+            }
             _settings.SoundLoopMaxSeconds = clamped;
             Raise();
             Save();
         }
+    }
+
+    public bool FlashEnabled
+    {
+        get => _settings.FlashEnabled;
+        set
+        {
+            if (_settings.FlashEnabled == value) return;
+            _settings.FlashEnabled = value;
+            Raise();
+            Save();
+        }
+    }
+
+    public int FlashIntervalMs
+    {
+        get => _settings.FlashIntervalMs;
+        set
+        {
+            // Lower bound = 100ms; faster than that risks photosensitive-seizure territory
+            // (the standard guideline is to stay under ~3 Hz, i.e. >= ~167ms half-cycle).
+            // Upper bound = 2000ms — past that it doesn't read as "flashing" anymore.
+            var clamped = Math.Clamp(value, 100, 2000);
+            if (_settings.FlashIntervalMs == clamped)
+            {
+                if (value != clamped) Raise();
+                return;
+            }
+            _settings.FlashIntervalMs = clamped;
+            Raise();
+            Save();
+        }
+    }
+
+    public string FlashColorA
+    {
+        get => _settings.FlashColorA;
+        set
+        {
+            var sanitized = ColorUtil.ToHex(ColorUtil.Parse(value));
+            if (string.Equals(_settings.FlashColorA, sanitized, StringComparison.OrdinalIgnoreCase)) return;
+            _settings.FlashColorA = sanitized;
+            Raise();
+            Raise(nameof(FlashColorABrush));
+            Raise(nameof(FlashColorAContrastBrush));
+            Save();
+        }
+    }
+
+    public string FlashColorB
+    {
+        get => _settings.FlashColorB;
+        set
+        {
+            var sanitized = ColorUtil.ToHex(ColorUtil.Parse(value));
+            if (string.Equals(_settings.FlashColorB, sanitized, StringComparison.OrdinalIgnoreCase)) return;
+            _settings.FlashColorB = sanitized;
+            Raise();
+            Raise(nameof(FlashColorBBrush));
+            Raise(nameof(FlashColorBContrastBrush));
+            Save();
+        }
+    }
+
+    public Brush FlashColorABrush => new SolidColorBrush(ColorUtil.Parse(_settings.FlashColorA));
+    public Brush FlashColorBBrush => new SolidColorBrush(ColorUtil.Parse(_settings.FlashColorB));
+    public Brush FlashColorAContrastBrush =>
+        new SolidColorBrush(ColorUtil.ContrastingTextColor(ColorUtil.Parse(_settings.FlashColorA)));
+    public Brush FlashColorBContrastBrush =>
+        new SolidColorBrush(ColorUtil.ContrastingTextColor(ColorUtil.Parse(_settings.FlashColorB)));
+
+    public ICommand PickFlashColorACommand { get; }
+    public ICommand PickFlashColorBCommand { get; }
+
+    private void PickFlashColor(bool isA)
+    {
+        var currentHex = isA ? _settings.FlashColorA : _settings.FlashColorB;
+        var currentWpf = ColorUtil.Parse(currentHex);
+
+        using var dialog = new Forms.ColorDialog
+        {
+            FullOpen = true,
+            AnyColor = true,
+            Color = System.Drawing.Color.FromArgb(currentWpf.R, currentWpf.G, currentWpf.B),
+        };
+
+        if (dialog.ShowDialog() != Forms.DialogResult.OK) return;
+
+        var picked = $"#{dialog.Color.R:X2}{dialog.Color.G:X2}{dialog.Color.B:X2}";
+        if (isA) FlashColorA = picked;
+        else FlashColorB = picked;
     }
 
     public IReadOnlyList<SoundLibrary.SoundOption> AvailableSounds { get; }
@@ -253,12 +380,18 @@ public class MainViewModel : ObservableObject
         RecomputeStatus();
     }
 
+    /// <summary>True when the user has been idle long enough that the next Slack
+    /// ping will fire the overlay. Exposed so the tray icon can flip to its
+    /// "armed" state in lockstep.</summary>
+    public bool IsIdle => _isIdle;
+
     private void OnIdleTick(TimeSpan idle)
     {
         var newIsIdle = idle.TotalSeconds >= _settings.IdleTimeoutSeconds;
         if (newIsIdle == _isIdle) return;
         _isIdle = newIsIdle;
         Log.Write($"idle state -> {(_isIdle ? "IDLE" : "ACTIVE")} (raw={idle.TotalSeconds:F1}s threshold={_settings.IdleTimeoutSeconds}s)");
+        Raise(nameof(IsIdle));
         RecomputeStatus();
     }
 
@@ -278,14 +411,31 @@ public class MainViewModel : ObservableObject
         System.Windows.Application.Current?.Dispatcher.Invoke(() => _showOverlay(evt));
     }
 
+    // Magic string published by SlackMonitorService when the listener is healthy.
+    // Keeping it in sync with the service is intentional — duplicating the constant
+    // is cheaper than threading an enum across both layers.
+    private const string ListenerHealthyStatus = "Watching Slack notifications";
+
     private void RecomputeStatus()
     {
         if (!Enabled) { Status = "Disabled"; return; }
 
-        if (_isIdle)
-            Status = "Idle - " + _slackConnectionStatus;
-        else
-            Status = "Active - " + _slackConnectionStatus;
+        // When the listener has something useful to report (permission denied,
+        // listener error, still connecting…), surface that instead of the
+        // operational explanation — the user needs to see and fix it.
+        if (_slackConnectionStatus != ListenerHealthyStatus)
+        {
+            Status = (_isIdle ? "Idle — " : "Active — ") + _slackConnectionStatus;
+            return;
+        }
+
+        // Happy path: explain what the current state actually means for alerts.
+        // "Active" was previously paired with "Watching Slack notifications", which
+        // misled users into thinking the overlay would fire — it won't, because
+        // the user is at the keyboard. Spell that out.
+        Status = _isIdle
+            ? "Idle — overlay armed for the next Slack ping"
+            : "Active — alerts paused while you're using the computer";
     }
 
     private void Save() => _settingsService.Save(_settings);

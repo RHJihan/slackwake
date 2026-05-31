@@ -40,4 +40,21 @@ public class AppSettings
     /// populates this from C:\Windows\Media but any readable .wav path works.
     /// </summary>
     public string SoundFilePath { get; set; } = string.Empty;
+
+    /// <summary>Strobe the overlay between two contrasting colors so the alert is
+    /// hard to ignore from across the room. Off by default — some users find it
+    /// distracting or uncomfortable.</summary>
+    public bool FlashEnabled { get; set; } = false;
+
+    /// <summary>Half-cycle duration of the flash, in milliseconds — the time the
+    /// background takes to fade from one color to the other. A full on/off cycle
+    /// is twice this value.</summary>
+    public int FlashIntervalMs { get; set; } = 500;
+
+    /// <summary>First color in the flash pair. Hex string (e.g. "#000000"). The text
+    /// color over this background is picked automatically for max contrast.</summary>
+    public string FlashColorA { get; set; } = "#000000";
+
+    /// <summary>Second color in the flash pair. Hex string (e.g. "#FFFFFF").</summary>
+    public string FlashColorB { get; set; } = "#FFFFFF";
 }
