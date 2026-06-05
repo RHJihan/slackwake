@@ -6,12 +6,14 @@ using System.Drawing.Imaging;
 namespace SlackWake.Helpers;
 
 /// <summary>
-/// Renders the tray icons in-memory so we don't have to ship .ico assets. One bell
-/// silhouette, three treatments:
-///   - Active:   solid white fill   (monitoring is on, user is at the keyboard)
-///   - Idle:     solid green fill   (monitoring is on AND user is idle — the
+/// Renders the tray icons in-memory so we don't have to ship .ico assets. State
+/// names are from SlackWake's own perspective. One bell silhouette, three
+/// treatments:
+///   - Active:   solid green fill   (monitoring is on AND the user is idle — the
 ///                                   next Slack ping will fire the overlay)
-///   - Inactive: outlined with a diagonal slash (monitoring disabled)
+///   - Idle:     solid white fill   (monitoring is on but the user is at the
+///                                   keyboard, so alerts are paused)
+///   - Disabled: outlined with a diagonal slash (monitoring disabled)
 /// Drawn at 32px with anti-aliasing — Windows downsamples to 16px cleanly. Pure
 /// white reads on the Win10/11 default dark taskbar; green pops against it
 /// without losing contrast on a light taskbar either.
@@ -20,13 +22,13 @@ internal static class TrayIconFactory
 {
     private const int Size = 32;
 
-    public enum TrayState { Active, Idle, Inactive }
+    public enum TrayState { Active, Idle, Disabled }
 
     public static Icon CreateActive() => Render(TrayState.Active);
 
     public static Icon CreateIdle() => Render(TrayState.Idle);
 
-    public static Icon CreateInactive() => Render(TrayState.Inactive);
+    public static Icon CreateDisabled() => Render(TrayState.Disabled);
 
     private static Icon Render(TrayState state)
     {
@@ -39,7 +41,7 @@ internal static class TrayIconFactory
 
             using var bell = BuildBellPath();
 
-            if (state == TrayState.Inactive)
+            if (state == TrayState.Disabled)
             {
                 var stroke = Color.White;
                 using var pen = new Pen(stroke, 2.2f) { LineJoin = LineJoin.Round };
@@ -65,8 +67,9 @@ internal static class TrayIconFactory
             }
             else
             {
-                // Active = neutral monitoring (white); Idle = armed-and-about-to-fire (green).
-                var fillColor = state == TrayState.Idle ? Color.Lime : Color.White;
+                // Active = armed-and-about-to-fire (green); Idle = paused while the
+                // user is present (white).
+                var fillColor = state == TrayState.Active ? Color.Lime : Color.White;
                 using var fill = new SolidBrush(fillColor);
                 g.FillPath(fill, bell);
             }

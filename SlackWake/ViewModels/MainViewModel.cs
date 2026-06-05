@@ -27,7 +27,10 @@ public class MainViewModel : ObservableObject
     private readonly SlackMonitorService _slack;
     private readonly Action<SlackEvent> _showOverlay;
 
-    private bool _isIdle;
+    // Raw OS fact: has the user been away from keyboard/mouse longer than the
+    // configured timeout? SlackWake's own "active vs idle" state is derived from
+    // this (see IsActive) — when the user is idle, SlackWake is active (armed).
+    private bool _userIdle;
     private string _status = "Initializing";
     private string _slackConnectionStatus = "Disconnected";
 
@@ -73,7 +76,7 @@ public class MainViewModel : ObservableObject
 
     private void TestOverlay()
     {
-        // Bypass the enabled + isIdle gate that real Slack events go through —
+        // Bypass the enabled + user-idle gate that real Slack events go through —
         // the user clicked "Test" specifically to preview the overlay with the
         // current settings, so suppressing it would defeat the purpose.
         var sample = new SlackEvent(
@@ -354,18 +357,19 @@ public class MainViewModel : ObservableObject
     }
 
     // Status indicator dot colors follow the traffic-light / presence convention
-    // used across Slack, Teams, and Discord: green = active/armed, amber = idle/
-    // paused, red = disabled. Frozen so the single shared instances are safe to
-    // hand to the binding from any thread.
+    // used across Slack, Teams, and Discord, here keyed on SlackWake's own state:
+    // green = active (armed), amber = idle (paused), red = disabled. Frozen so the
+    // single shared instances are safe to hand to the binding from any thread.
     private static readonly Brush ActiveBrush = FreezeBrush(System.Windows.Media.Color.FromRgb(0x2E, 0xB6, 0x7D));   // green
     private static readonly Brush IdleBrush = FreezeBrush(System.Windows.Media.Color.FromRgb(0xE3, 0xB3, 0x41));      // amber
     private static readonly Brush DisabledBrush = FreezeBrush(System.Windows.Media.Color.FromRgb(0xE5, 0x48, 0x4D));  // red
 
-    /// <summary>Color for the status dot, keyed on the same two flags that pick the
-    /// leading word of <see cref="Status"/> so the dot and the text always agree.</summary>
+    /// <summary>Color for the status dot, keyed on the same flags that pick the
+    /// leading word of <see cref="Status"/> so the dot and the text always agree.
+    /// SlackWake is active (armed) precisely when the user is idle.</summary>
     public Brush StatusBrush =>
         !Enabled ? DisabledBrush
-        : _isIdle ? ActiveBrush
+        : _userIdle ? ActiveBrush
         : IdleBrush;
 
     private static Brush FreezeBrush(System.Windows.Media.Color c)
@@ -402,30 +406,33 @@ public class MainViewModel : ObservableObject
         RecomputeStatus();
     }
 
-    /// <summary>True when the user has been idle long enough that the next Slack
-    /// ping will fire the overlay. Exposed so the tray icon can flip to its
-    /// "armed" state in lockstep.</summary>
-    public bool IsIdle => _isIdle;
+    /// <summary>True when SlackWake is active — i.e. armed so the next Slack ping
+    /// fires the overlay. This is the case when the user has been idle longer than
+    /// the configured timeout. Exposed so the tray icon can flip to its active
+    /// (armed) state in lockstep. When false, SlackWake is idle (alerts paused
+    /// because the user is at the keyboard).</summary>
+    public bool IsActive => _userIdle;
 
     private void OnIdleTick(TimeSpan idle)
     {
-        var newIsIdle = idle.TotalSeconds >= _settings.IdleTimeoutSeconds;
-        if (newIsIdle == _isIdle) return;
-        _isIdle = newIsIdle;
-        Log.Write($"idle state -> {(_isIdle ? "IDLE" : "ACTIVE")} (raw={idle.TotalSeconds:F1}s threshold={_settings.IdleTimeoutSeconds}s)");
-        Raise(nameof(IsIdle));
+        var userIdle = idle.TotalSeconds >= _settings.IdleTimeoutSeconds;
+        if (userIdle == _userIdle) return;
+        _userIdle = userIdle;
+        Log.Write($"slackwake state -> {(_userIdle ? "ACTIVE (armed)" : "IDLE (paused)")} (user idle raw={idle.TotalSeconds:F1}s threshold={_settings.IdleTimeoutSeconds}s)");
+        Raise(nameof(IsActive));
         RecomputeStatus();
     }
 
     private void OnSlackNotification(SlackEvent evt)
     {
-        Log.Write($"VM received SlackEvent: enabled={Enabled} isIdle={_isIdle} sender='{evt.Sender}' channel='{evt.Channel}' text='{evt.Text}'");
+        Log.Write($"VM received SlackEvent: enabled={Enabled} userIdle={_userIdle} sender='{evt.Sender}' channel='{evt.Channel}' text='{evt.Text}'");
 
-        // Only fire overlays when the user is actually away — that is the whole
-        // point of the app. Active users hear Slack's own notifications.
-        if (!Enabled || !_isIdle)
+        // Only fire overlays when SlackWake is active — i.e. the user is actually
+        // away. That is the whole point of the app; a user at the keyboard hears
+        // Slack's own notifications.
+        if (!Enabled || !_userIdle)
         {
-            Log.Write("  -> suppressed (not idle or disabled)");
+            Log.Write("  -> suppressed (slackwake idle or disabled)");
             return;
         }
 
@@ -454,15 +461,15 @@ public class MainViewModel : ObservableObject
         // listener error, still connecting…), surface that instead of the
         // operational explanation — the user needs to see and fix it.
         if (_slackConnectionStatus != ListenerHealthyStatus)
-            return (_isIdle ? "Idle — " : "Active — ") + _slackConnectionStatus;
+            return (_userIdle ? "Active — " : "Idle — ") + _slackConnectionStatus;
 
-        // Happy path: explain what the current state actually means for alerts.
-        // "Active" was previously paired with "Watching Slack notifications", which
-        // misled users into thinking the overlay would fire — it won't, because
-        // the user is at the keyboard. Spell that out.
-        return _isIdle
-            ? "Idle: overlay armed for the next Slack ping"
-            : "Active: alerts paused while using the computer";
+        // Happy path: explain what the current state actually means for alerts,
+        // named from SlackWake's own perspective. SlackWake is "active" when it is
+        // armed to fire (the user is away) and "idle" when it is standing down
+        // (the user is at the keyboard, so Slack's own notifications suffice).
+        return _userIdle
+            ? "Active: overlay armed for the next Slack ping"
+            : "Idle: alerts paused while using the computer";
     }
 
     private void Save() => _settingsService.Save(_settings);

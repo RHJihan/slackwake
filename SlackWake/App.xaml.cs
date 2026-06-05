@@ -22,7 +22,7 @@ public partial class App : System.Windows.Application
     private Forms.NotifyIcon? _tray;
     private Icon? _iconActive;
     private Icon? _iconIdle;
-    private Icon? _iconInactive;
+    private Icon? _iconDisabled;
     private MainWindow? _settingsWindow;
     private MainViewModel? _vm;
 
@@ -66,11 +66,11 @@ public partial class App : System.Windows.Application
     {
         _iconActive = TrayIconFactory.CreateActive();
         _iconIdle = TrayIconFactory.CreateIdle();
-        _iconInactive = TrayIconFactory.CreateInactive();
+        _iconDisabled = TrayIconFactory.CreateDisabled();
 
         _tray = new Forms.NotifyIcon
         {
-            Icon = _iconInactive,   // real state applied by SyncTrayState below
+            Icon = _iconDisabled,   // real state applied by SyncTrayState below
             Text = "SlackWake",
             Visible = true
         };
@@ -91,7 +91,7 @@ public partial class App : System.Windows.Application
     private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName == nameof(MainViewModel.Enabled) ||
-            e.PropertyName == nameof(MainViewModel.IsIdle))
+            e.PropertyName == nameof(MainViewModel.IsActive))
             SyncTrayState();
     }
 
@@ -101,21 +101,21 @@ public partial class App : System.Windows.Application
 
         if (!_vm.Enabled)
         {
-            _tray.Icon = _iconInactive;
-            _tray.Text = "SlackWake — paused";
+            _tray.Icon = _iconDisabled;
+            _tray.Text = "SlackWake — disabled";
         }
-        else if (_vm.IsIdle)
+        else if (_vm.IsActive)
         {
-            // Idle = armed. Red icon flags that the next Slack ping will fire the
-            // overlay, giving the user an at-a-glance signal even without opening
-            // the settings window.
-            _tray.Icon = _iconIdle;
-            _tray.Text = "SlackWake — idle (overlay armed)";
+            // Active = armed. Green icon flags that the next Slack ping will fire
+            // the overlay, giving the user an at-a-glance signal even without
+            // opening the settings window.
+            _tray.Icon = _iconActive;
+            _tray.Text = "SlackWake — active (overlay armed)";
         }
         else
         {
-            _tray.Icon = _iconActive;
-            _tray.Text = "SlackWake — monitoring";
+            _tray.Icon = _iconIdle;
+            _tray.Text = "SlackWake — idle (alerts paused)";
         }
     }
 
@@ -208,7 +208,7 @@ public partial class App : System.Windows.Application
         }
         _iconActive?.Dispose();
         _iconIdle?.Dispose();
-        _iconInactive?.Dispose();
+        _iconDisabled?.Dispose();
         base.OnExit(e);
     }
 }

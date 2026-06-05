@@ -110,10 +110,10 @@ until the idle timer trips, and the next Slack ping will fire the overlay.
    +--------------------+                       |                      |
                                                 |   MainViewModel      |
    +--------------------+   SlackEvent          |                      |
-   | SlackMonitorService| --------------------> |  - tracks isIdle     |
-   | (Windows toast     |                       |  - filters: only     |
-   |  listener, Slack-  |                       |    fires when idle   |
-   |  only)             |                       |                      |
+   | SlackMonitorService| --------------------> |  - tracks userIdle    |
+   | (Windows toast     |                       |  - is "active" (armed)|
+   |  listener, Slack-  |                       |    only while the user|
+   |  only)             |                       |    is idle            |
    +--------------------+                       +----------+-----------+
                                                            |
                                                            v
@@ -160,7 +160,8 @@ until the idle timer trips, and the next Slack ping will fire the overlay.
 |  +---------------------------------------------+  |
 |                                                   |
 |  +---------------------------------------------+  |
-|  | * Active - Watching Slack notifications     |  |
+|  | * Active: overlay armed for the next Slack  |  |
+|  |   ping   (idle when you're at the keyboard) |  |
 |  +---------------------------------------------+  |
 +---------------------------------------------------+
 ```
