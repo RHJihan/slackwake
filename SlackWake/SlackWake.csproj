@@ -12,10 +12,17 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
-    <ApplicationIcon></ApplicationIcon>
+    <ApplicationIcon>Assets\app.ico</ApplicationIcon>
     <AssemblyVersion>1.0.0.0</AssemblyVersion>
     <FileVersion>1.0.0.0</FileVersion>
     <Version>1.0.0</Version>
   </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Embedded so WPF windows can reference it via pack URI for their title-bar
+         / Alt-Tab icon. The same file is baked into the exe's win32 resource by
+         <ApplicationIcon> above, which drives the taskbar and Explorer icon. -->
+    <Resource Include="Assets\app.ico" />
+  </ItemGroup>
 
 </Project>
