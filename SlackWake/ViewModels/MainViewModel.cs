@@ -67,6 +67,8 @@ public class MainViewModel : ObservableObject
             Raise(nameof(PreviewButtonGlyph));
         };
         TogglePreviewCommand = new RelayCommand(TogglePreview);
+        PreviewSoundCommand = new RelayCommand<SoundLibrary.SoundOption>(PreviewSound);
+        StopPreviewCommand = new RelayCommand(_preview.Stop);
         PickFlashColorACommand = new RelayCommand(() => PickFlashColor(isA: true));
         PickFlashColorBCommand = new RelayCommand(() => PickFlashColor(isA: false));
         TestOverlayCommand = new RelayCommand(TestOverlay);
@@ -346,6 +348,25 @@ public class MainViewModel : ObservableObject
             _preview.Stop();
         else
             _preview.Play(_selectedSound.FilePath);
+    }
+
+    // ---- Hover preview (dropdown) ----
+    // The open sound dropdown previews whichever entry the cursor settles on, the
+    // way the iOS ringtone picker and the Slack/Discord notification-sound pickers
+    // do. Both commands route through the same PreviewPlayer the toggle button uses,
+    // so a hover preview supersedes (and silences) any prior preview — there's never
+    // overlapping audio. The view debounces hover, so a quick sweep stays silent.
+
+    /// <summary>Preview a specific sound on hover. Parameter is the hovered <see cref="SoundLibrary.SoundOption"/>.</summary>
+    public ICommand PreviewSoundCommand { get; }
+
+    /// <summary>Silence any active preview — fired when the dropdown closes (selection or dismissal).</summary>
+    public ICommand StopPreviewCommand { get; }
+
+    private void PreviewSound(SoundLibrary.SoundOption? sound)
+    {
+        if (sound == null) return;
+        _preview.Play(sound.FilePath);
     }
 
     public AppSettings Settings => _settings;

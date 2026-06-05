@@ -152,7 +152,10 @@
                                 <ComboBox ItemsSource="{Binding AvailableSounds}"
                                           SelectedItem="{Binding SelectedSound}"
                                           DisplayMemberPath="DisplayName"
-                                          VerticalAlignment="Center"/>
+                                          VerticalAlignment="Center"
+                                          helpers:SoundHoverPreviewBehavior.PreviewCommand="{Binding PreviewSoundCommand}"
+                                          helpers:SoundHoverPreviewBehavior.StopCommand="{Binding StopPreviewCommand}"
+                                          helpers:SoundHoverPreviewBehavior.DelayMilliseconds="200"/>
                             </DockPanel>
 
                             <CheckBox Content="Loop sound until dismissed"
