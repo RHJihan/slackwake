@@ -353,6 +353,28 @@ public class MainViewModel : ObservableObject
         private set => Set(ref _status, value);
     }
 
+    // Status indicator dot colors follow the traffic-light / presence convention
+    // used across Slack, Teams, and Discord: green = active/armed, amber = idle/
+    // paused, red = disabled. Frozen so the single shared instances are safe to
+    // hand to the binding from any thread.
+    private static readonly Brush ActiveBrush = FreezeBrush(System.Windows.Media.Color.FromRgb(0x2E, 0xB6, 0x7D));   // green
+    private static readonly Brush IdleBrush = FreezeBrush(System.Windows.Media.Color.FromRgb(0xE3, 0xB3, 0x41));      // amber
+    private static readonly Brush DisabledBrush = FreezeBrush(System.Windows.Media.Color.FromRgb(0xE5, 0x48, 0x4D));  // red
+
+    /// <summary>Color for the status dot, keyed on the same two flags that pick the
+    /// leading word of <see cref="Status"/> so the dot and the text always agree.</summary>
+    public Brush StatusBrush =>
+        !Enabled ? DisabledBrush
+        : _isIdle ? ActiveBrush
+        : IdleBrush;
+
+    private static Brush FreezeBrush(System.Windows.Media.Color c)
+    {
+        var b = new SolidColorBrush(c);
+        b.Freeze();
+        return b;
+    }
+
     // ---- Lifecycle ----
 
     public void Start()
@@ -418,22 +440,27 @@ public class MainViewModel : ObservableObject
 
     private void RecomputeStatus()
     {
-        if (!Enabled) { Status = "Disabled"; return; }
+        Status = ComputeStatusText();
+        // The dot color is keyed on the same flags as the text — recompute it in
+        // lockstep so the two never drift apart.
+        Raise(nameof(StatusBrush));
+    }
+
+    private string ComputeStatusText()
+    {
+        if (!Enabled) return "Disabled";
 
         // When the listener has something useful to report (permission denied,
         // listener error, still connecting…), surface that instead of the
         // operational explanation — the user needs to see and fix it.
         if (_slackConnectionStatus != ListenerHealthyStatus)
-        {
-            Status = (_isIdle ? "Idle — " : "Active — ") + _slackConnectionStatus;
-            return;
-        }
+            return (_isIdle ? "Idle — " : "Active — ") + _slackConnectionStatus;
 
         // Happy path: explain what the current state actually means for alerts.
         // "Active" was previously paired with "Watching Slack notifications", which
         // misled users into thinking the overlay would fire — it won't, because
         // the user is at the keyboard. Spell that out.
-        Status = _isIdle
+        return _isIdle
             ? "Active — overlay armed for the next Slack ping"
             : "Idle — alerts paused while using the computer";
     }
