@@ -79,7 +79,11 @@ public partial class App : System.Windows.Application
         menu.Items.Add("-");
         menu.Items.Add("Exit", null, (_, _) => Shutdown());
         _tray.ContextMenuStrip = menu;
-        _tray.DoubleClick += (_, _) => ShowSettings();
+        // Left-click opens settings; right-click is left to the context menu.
+        _tray.MouseClick += (_, args) =>
+        {
+            if (args.Button == Forms.MouseButtons.Left) ShowSettings();
+        };
 
         if (_vm != null)
         {
