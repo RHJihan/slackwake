@@ -9,11 +9,11 @@ namespace SlackWake.Helpers;
 /// Renders the tray icons in-memory so we don't have to ship .ico assets. One bell
 /// silhouette, three treatments:
 ///   - Active:   solid white fill   (monitoring is on, user is at the keyboard)
-///   - Idle:     solid red fill     (monitoring is on AND user is idle — the
+///   - Idle:     solid green fill   (monitoring is on AND user is idle — the
 ///                                   next Slack ping will fire the overlay)
 ///   - Inactive: outlined with a diagonal slash (monitoring disabled)
 /// Drawn at 32px with anti-aliasing — Windows downsamples to 16px cleanly. Pure
-/// white reads on the Win10/11 default dark taskbar; pure red pops against it
+/// white reads on the Win10/11 default dark taskbar; green pops against it
 /// without losing contrast on a light taskbar either.
 /// </summary>
 internal static class TrayIconFactory
@@ -65,8 +65,8 @@ internal static class TrayIconFactory
             }
             else
             {
-                // Active = neutral monitoring; Idle = armed-and-about-to-fire.
-                var fillColor = state == TrayState.Idle ? Color.Red : Color.White;
+                // Active = neutral monitoring (white); Idle = armed-and-about-to-fire (green).
+                var fillColor = state == TrayState.Idle ? Color.Lime : Color.White;
                 using var fill = new SolidBrush(fillColor);
                 g.FillPath(fill, bell);
             }

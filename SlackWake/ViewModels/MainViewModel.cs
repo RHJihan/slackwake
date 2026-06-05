@@ -461,8 +461,8 @@ public class MainViewModel : ObservableObject
         // misled users into thinking the overlay would fire — it won't, because
         // the user is at the keyboard. Spell that out.
         return _isIdle
-            ? "Active — overlay armed for the next Slack ping"
-            : "Idle — alerts paused while using the computer";
+            ? "Idle: overlay armed for the next Slack ping"
+            : "Active: alerts paused while using the computer";
     }
 
     private void Save() => _settingsService.Save(_settings);
