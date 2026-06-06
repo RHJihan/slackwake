@@ -459,7 +459,11 @@
                                      3 up to 8 lines, then scrolls. AcceptsReturn lets the user
                                      lay entries out one-per-line for readability — newlines
                                      between entries are trimmed away during parsing. -->
-                                <ui:TextBox PlaceholderText="standup, #random, &quot;This is a test notification&quot;"
+                                <!-- helpers:Placeholder.Text overlays a top-aligned hint instead of
+                                     WPF-UI's built-in PlaceholderText, which hardcodes
+                                     VerticalAlignment="Center" and would float the hint in the
+                                     vertical middle of this multi-line box. -->
+                                <ui:TextBox helpers:Placeholder.Text="standup, #random, &quot;This is a test notification&quot;"
                                             TextWrapping="Wrap"
                                             AcceptsReturn="True"
                                             MinLines="3"
