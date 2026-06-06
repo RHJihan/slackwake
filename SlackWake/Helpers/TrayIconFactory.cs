@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (C) 2026 Md. Rifat Hasan Jihan
+
 using System;
 using System.Drawing;
 using System.Drawing.Drawing2D;
