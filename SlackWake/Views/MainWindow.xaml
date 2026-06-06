@@ -429,6 +429,48 @@
                         </StackPanel>
                     </ui:Card>
 
+                    <!-- Filters -->
+                    <ui:TextBlock Text="Filters" FontTypography="BodyStrong"
+                                  Margin="2,20,0,8" Appearance="Secondary"/>
+                    <ui:Card Padding="16">
+                        <StackPanel>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <ui:SymbolIcon Grid.Column="0" Symbol="FilterDismiss24" FontSize="20"
+                                               Margin="0,0,14,0" VerticalAlignment="Center"/>
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <ui:TextBlock Text="Mute by keyword" FontTypography="Body"/>
+                                    <ui:TextBlock Text="Skip the overlay, sound, and flash for matching pings."
+                                                  Style="{StaticResource Caption}"/>
+                                </StackPanel>
+                                <ui:ToggleSwitch Grid.Column="2" VerticalAlignment="Center"
+                                                 IsChecked="{Binding KeywordFilterEnabled}"/>
+                            </Grid>
+
+                            <StackPanel IsEnabled="{Binding KeywordFilterEnabled}" Margin="0,16,0,0">
+                                <ui:TextBlock Text="Keywords" Style="{StaticResource FieldLabel}"/>
+                                <ui:TextBlock Text="Comma-separated. A ping is muted when its sender, channel, or message text contains any of these (case-insensitive). Wrap a phrase in double quotes to match it exactly, including commas."
+                                              Style="{StaticResource Caption}" Margin="0,0,0,8"/>
+                                <!-- Grows with content: wraps long keyword lists, expands from
+                                     3 up to 8 lines, then scrolls. AcceptsReturn lets the user
+                                     lay entries out one-per-line for readability — newlines
+                                     between entries are trimmed away during parsing. -->
+                                <ui:TextBox PlaceholderText="standup, #random, &quot;This is a test notification&quot;"
+                                            TextWrapping="Wrap"
+                                            AcceptsReturn="True"
+                                            MinLines="3"
+                                            MaxLines="8"
+                                            VerticalContentAlignment="Top"
+                                            VerticalScrollBarVisibility="Auto"
+                                            Text="{Binding KeywordFilterText, UpdateSourceTrigger=LostFocus}"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </ui:Card>
+
                     <!-- Setup note -->
                     <ui:InfoBar Margin="0,20,0,8"
                                 IsOpen="True"

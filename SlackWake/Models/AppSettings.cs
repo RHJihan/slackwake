@@ -57,4 +57,14 @@ public class AppSettings
 
     /// <summary>Second color in the flash pair. Hex string (e.g. "#FFFFFF").</summary>
     public string FlashColorB { get; set; } = "#FFFFFF";
+
+    /// <summary>When true, Slack pings whose content matches any entry in
+    /// <see cref="KeywordFilterText"/> are silently dropped — no overlay, no sound,
+    /// no flash. Lets the user mute noisy bots, channels, or topics while away.</summary>
+    public bool KeywordFilterEnabled { get; set; } = false;
+
+    /// <summary>Comma-separated keywords. A ping is muted when its sender, channel,
+    /// or message text contains any of these (case-insensitive substring match).
+    /// Blank entries are ignored. Only consulted when <see cref="KeywordFilterEnabled"/>.</summary>
+    public string KeywordFilterText { get; set; } = string.Empty;
 }

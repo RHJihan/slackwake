@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Text;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media;
@@ -285,6 +286,31 @@ public class MainViewModel : ObservableObject
         }
     }
 
+    public bool KeywordFilterEnabled
+    {
+        get => _settings.KeywordFilterEnabled;
+        set
+        {
+            if (_settings.KeywordFilterEnabled == value) return;
+            _settings.KeywordFilterEnabled = value;
+            Raise();
+            Save();
+        }
+    }
+
+    public string KeywordFilterText
+    {
+        get => _settings.KeywordFilterText;
+        set
+        {
+            var newValue = value ?? string.Empty;
+            if (string.Equals(_settings.KeywordFilterText, newValue, StringComparison.Ordinal)) return;
+            _settings.KeywordFilterText = newValue;
+            Raise();
+            Save();
+        }
+    }
+
     public Brush FlashColorABrush => new SolidColorBrush(ColorUtil.Parse(_settings.FlashColorA));
     public Brush FlashColorBBrush => new SolidColorBrush(ColorUtil.Parse(_settings.FlashColorB));
     public Brush FlashColorAContrastBrush =>
@@ -467,9 +493,79 @@ public class MainViewModel : ObservableObject
                 return;
             }
 
+            // Mute pings whose content matches a user keyword (noisy bots, channels,
+            // topics). Checked after the idle/enabled gate so it only costs anything
+            // on pings we'd otherwise fire on.
+            if (IsMutedByKeyword(evt, out var matched))
+            {
+                Log.Write($"  -> suppressed (keyword filter matched '{matched}')");
+                return;
+            }
+
             Log.Write("  -> dispatching overlay");
             _showOverlay(evt);
         });
+    }
+
+    /// <summary>
+    /// True when keyword filtering is on and the event's sender, channel, or text
+    /// contains any configured keyword (case-insensitive substring match). The
+    /// matching keyword is returned via <paramref name="matched"/> for logging.
+    /// </summary>
+    private bool IsMutedByKeyword(SlackEvent evt, out string matched)
+    {
+        matched = string.Empty;
+        if (!_settings.KeywordFilterEnabled) return false;
+
+        var keywords = _settings.KeywordFilterText;
+        if (string.IsNullOrWhiteSpace(keywords)) return false;
+
+        var haystack = string.Join(' ',
+            evt.Sender ?? string.Empty,
+            evt.Channel ?? string.Empty,
+            evt.Text ?? string.Empty);
+
+        foreach (var keyword in ParseKeywords(keywords))
+        {
+            if (haystack.IndexOf(keyword, StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                matched = keyword;
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// Splits the keyword string into individual keywords. Entries are separated by
+    /// commas or line breaks (so the user can lay them out one-per-line), but anything
+    /// inside double quotes is taken verbatim as one keyword — so a phrase that itself
+    /// contains a comma (e.g. <c>"is now on-call for"</c>) stays intact. Surrounding
+    /// whitespace is trimmed; blank entries are dropped.
+    /// </summary>
+    private static IEnumerable<string> ParseKeywords(string input)
+    {
+        var current = new StringBuilder();
+        var inQuotes = false;
+
+        foreach (var c in input)
+        {
+            if (c == '"')
+            {
+                inQuotes = !inQuotes;
+            }
+            else if ((c == ',' || c == '\n' || c == '\r') && !inQuotes)
+            {
+                if (current.ToString().Trim() is { Length: > 0 } token) yield return token;
+                current.Clear();
+            }
+            else
+            {
+                current.Append(c);
+            }
+        }
+
+        if (current.ToString().Trim() is { Length: > 0 } last) yield return last;
     }
 
     // Magic string published by SlackMonitorService when the listener is healthy.
