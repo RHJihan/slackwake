@@ -31,6 +31,13 @@ public class SlackMonitorService
     private bool _firstPass = true;
     private bool _running;
 
+    // Bumped on every Stop(). Start() captures the value before its first await
+    // and bails if it changed, so a disable that lands mid-startup (during the
+    // RequestAccessAsync await) cannot leave a poll timer running. Start/Stop are
+    // both driven from the UI thread, and the async continuation resumes there
+    // too, so plain int access is safe — no interlocking needed.
+    private int _generation;
+
     public event Action<SlackEvent>? NotificationReceived;
     public event Action<string>? StatusChanged;
 
@@ -39,11 +46,22 @@ public class SlackMonitorService
         if (_running) return;
         Log.Write("SlackMonitor.Start()");
 
+        var startGen = _generation;
+
         try
         {
             _listener = UserNotificationListener.Current;
             var status = await _listener.RequestAccessAsync();
             Log.Write($"RequestAccessAsync -> {status}");
+
+            // Stop() was called while we were awaiting access — the user disabled
+            // monitoring mid-startup. Abort instead of spinning up the poll timer,
+            // otherwise the app would stay armed despite being disabled.
+            if (startGen != _generation)
+            {
+                Log.Write("  -> startup aborted (stopped during access request)");
+                return;
+            }
 
             if (status != UserNotificationListenerAccessStatus.Allowed)
             {
@@ -77,6 +95,9 @@ public class SlackMonitorService
     public void Stop()
     {
         Log.Write("SlackMonitor.Stop()");
+        // Invalidate any in-flight Start() so a startup that's still awaiting
+        // access won't resume and re-arm the poller after we've stopped.
+        _generation++;
         if (_pollTimer != null)
         {
             try { _pollTimer.Stop(); _pollTimer.Dispose(); }

@@ -25,4 +25,11 @@
     <Resource Include="Assets\app.ico" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Fluent 2 / WinUI design language for WPF: Mica, FluentWindow, Fluent System
+         Icons, ToggleSwitch, Card, InfoBar, and implicit Fluent styling of the base
+         WPF controls. Purely presentational — no app logic depends on it. -->
+    <PackageReference Include="WPF-UI" Version="4.3.0" />
+  </ItemGroup>
+
 </Project>

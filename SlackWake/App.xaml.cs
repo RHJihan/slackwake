@@ -8,6 +8,7 @@ using SlackWake.Helpers;
 using SlackWake.Services;
 using SlackWake.ViewModels;
 using SlackWake.Views;
+using Wpf.Ui.Appearance;
 using Forms = System.Windows.Forms;
 
 namespace SlackWake;
@@ -40,7 +41,15 @@ public partial class App : System.Windows.Application
 
         _vm = new MainViewModel(settings, settingsService, idle, slack, ShowOverlay);
 
+        // Match the Fluent palette to the user's current Windows light/dark theme and
+        // accent before any window is shown. Purely presentational — does not touch the
+        // app's monitoring/overlay behavior.
+        ApplicationThemeManager.ApplySystemTheme();
+
         _settingsWindow = new MainWindow { DataContext = _vm };
+        // Keep the window's Mica backdrop and palette in sync if the OS theme flips
+        // while SlackWake is running.
+        SystemThemeWatcher.Watch(_settingsWindow);
         InitTray();
 
         // Show the settings window on launch unless we were auto-started silently

@@ -448,17 +448,28 @@ public class MainViewModel : ObservableObject
     {
         Log.Write($"VM received SlackEvent: enabled={Enabled} userIdle={_userIdle} sender='{evt.Sender}' channel='{evt.Channel}' text='{evt.Text}'");
 
-        // Only fire overlays when SlackWake is active — i.e. the user is actually
-        // away. That is the whole point of the app; a user at the keyboard hears
-        // Slack's own notifications.
-        if (!Enabled || !_userIdle)
-        {
-            Log.Write("  -> suppressed (slackwake idle or disabled)");
-            return;
-        }
+        // The gate (Enabled + user-idle) must be evaluated on the UI thread, which
+        // owns these flags. This event arrives on a Slack poll thread, so checking
+        // here would race a concurrent disable and could act on a stale read of
+        // Enabled — letting an overlay fire even though monitoring was turned off.
+        // Marshal first, then decide on the thread that mutates the flags.
+        var dispatcher = System.Windows.Application.Current?.Dispatcher;
+        if (dispatcher == null) return;
 
-        Log.Write("  -> dispatching overlay");
-        System.Windows.Application.Current?.Dispatcher.Invoke(() => _showOverlay(evt));
+        dispatcher.Invoke(() =>
+        {
+            // Only fire overlays when SlackWake is active — i.e. the user is
+            // actually away. That is the whole point of the app; a user at the
+            // keyboard hears Slack's own notifications.
+            if (!Enabled || !_userIdle)
+            {
+                Log.Write("  -> suppressed (slackwake idle or disabled)");
+                return;
+            }
+
+            Log.Write("  -> dispatching overlay");
+            _showOverlay(evt);
+        });
     }
 
     // Magic string published by SlackMonitorService when the listener is healthy.

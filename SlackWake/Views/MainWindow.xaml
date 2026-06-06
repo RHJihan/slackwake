@@ -1,262 +1,444 @@
-<Window x:Class="SlackWake.Views.MainWindow"
+<ui:FluentWindow x:Class="SlackWake.Views.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
         xmlns:helpers="clr-namespace:SlackWake.Helpers"
         Title="SlackWake"
         Icon="/Assets/app.ico"
-        Width="460" Height="760"
+        Width="500" Height="820"
         WindowStartupLocation="CenterScreen"
         ResizeMode="CanResize"
-        MinWidth="380" MinHeight="420"
-        Background="#FAFAFA"
-        FontFamily="Segoe UI">
+        MinWidth="420" MinHeight="520"
+        ExtendsContentIntoTitleBar="True"
+        WindowBackdropType="Mica"
+        WindowCornerPreference="Round">
 
-    <Window.Resources>
-        <Style TargetType="TextBlock" x:Key="Label">
-            <Setter Property="Foreground" Value="#444"/>
-            <Setter Property="FontSize" Value="12"/>
-            <Setter Property="Margin" Value="0,0,0,4"/>
+    <ui:FluentWindow.Resources>
+
+        <!-- Caption beneath each section/row title. Kept as a single style so the
+             secondary-text treatment stays consistent across the whole window. -->
+        <Style TargetType="ui:TextBlock" x:Key="Caption">
+            <Setter Property="FontTypography" Value="Caption"/>
+            <Setter Property="Appearance" Value="Secondary"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
         </Style>
-        <!-- Flat-colored button used as a color swatch. The default Button chrome
-             muddies the actual color the user picked; this template strips it to
-             a Border so the swatch faithfully shows the selected color. -->
+
+        <!-- Field label sitting above a slider / combo. -->
+        <Style TargetType="ui:TextBlock" x:Key="FieldLabel">
+            <Setter Property="FontTypography" Value="BodyStrong"/>
+            <Setter Property="Margin" Value="0,0,0,6"/>
+        </Style>
+
+        <!-- Numeric editor paired with a slider — compact, right-aligned, Fluent chrome.
+             BasedOn the implicit WPF-UI TextBox style so it keeps the Fluent dark chrome;
+             an explicit keyed style otherwise opts out of the implicit style entirely. -->
+        <Style TargetType="TextBox" x:Key="NumericBox" BasedOn="{StaticResource {x:Type TextBox}}">
+            <Setter Property="Width" Value="72"/>
+            <Setter Property="Margin" Value="12,0,0,0"/>
+            <Setter Property="TextAlignment" Value="Right"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+        </Style>
+
+        <!-- Flat color swatch. The default button chrome muddies the actual color the
+             user picked, so the template strips it to a rounded Fluent surface that
+             faithfully shows the selected color and lights up on hover. -->
         <Style TargetType="Button" x:Key="ColorSwatch">
             <Setter Property="Cursor" Value="Hand"/>
             <Setter Property="FontFamily" Value="Consolas"/>
-            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Height" Value="44"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
-                        <Border Background="{TemplateBinding Background}"
-                                BorderBrush="#888" BorderThickness="1"
-                                CornerRadius="3"
-                                SnapsToDevicePixels="True">
-                            <ContentPresenter HorizontalAlignment="Center"
-                                              VerticalAlignment="Center"
-                                              TextElement.Foreground="{TemplateBinding Foreground}"/>
-                        </Border>
+                        <Grid>
+                            <Border x:Name="Swatch"
+                                    Background="{TemplateBinding Background}"
+                                    BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="6"
+                                    SnapsToDevicePixels="True">
+                                <ContentPresenter HorizontalAlignment="Center"
+                                                  VerticalAlignment="Center"
+                                                  TextElement.Foreground="{TemplateBinding Foreground}"/>
+                            </Border>
+                            <!-- A thin focus ring drawn on top so keyboard users can see
+                                 which swatch is focused without disturbing the color. -->
+                            <Border x:Name="Focus"
+                                    CornerRadius="8"
+                                    Margin="-2"
+                                    BorderThickness="2"
+                                    BorderBrush="{DynamicResource AccentFillColorDefaultBrush}"
+                                    Visibility="Collapsed"/>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Swatch" Property="BorderBrush"
+                                        Value="{DynamicResource AccentFillColorSecondaryBrush}"/>
+                                <Setter TargetName="Swatch" Property="BorderThickness" Value="2"/>
+                            </Trigger>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="Focus" Property="Visibility" Value="Visible"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Swatch" Property="Opacity" Value="0.85"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
         </Style>
-    </Window.Resources>
+    </ui:FluentWindow.Resources>
 
-    <!-- DockPanel pins Status + Test button at the bottom so they remain visible
-         regardless of scroll position; the ScrollViewer fills the rest with the
-         actual settings content. -->
-    <DockPanel LastChildFill="True">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
 
-        <!-- Status (pinned at the very bottom) -->
-        <Border DockPanel.Dock="Bottom"
-                Background="#F0F0F0"
-                CornerRadius="6"
-                Padding="12,10"
-                Margin="20,0,20,20">
-            <StackPanel Orientation="Horizontal">
-                <Ellipse Width="10" Height="10" Margin="0,0,8,0"
-                         Fill="{Binding StatusBrush}"
-                         VerticalAlignment="Center"/>
-                <TextBlock Text="{Binding Status}"
-                           FontWeight="SemiBold"
-                           VerticalAlignment="Center"/>
-            </StackPanel>
-        </Border>
+        <!-- Custom Fluent title bar; the window draws content right up to the edge
+             (Mica backdrop). Closing hides to tray (handled in MainWindow.OnClosing). -->
+        <ui:TitleBar Grid.Row="0"
+                     Title="SlackWake"
+                     ShowMaximize="False">
+            <ui:TitleBar.Icon>
+                <ui:ImageIcon Source="pack://application:,,,/Assets/app.ico"/>
+            </ui:TitleBar.Icon>
+        </ui:TitleBar>
 
-        <!-- Test button (pinned just above Status) -->
-        <Button DockPanel.Dock="Bottom"
-                Margin="20,0,20,10"
-                Height="36"
-                FontWeight="SemiBold"
-                Command="{Binding TestOverlayCommand}"
-                Content="Test overlay with current settings"
-                ToolTip="Show a sample overlay right now using your current sound and flash settings (bypasses idle check)."/>
+        <!-- DockPanel pins the status pill + test button at the bottom so they remain
+             visible regardless of scroll position; the ScrollViewer fills the rest. -->
+        <DockPanel Grid.Row="1" LastChildFill="True" Margin="0,0,0,0">
 
-        <!-- Scrollable settings -->
-        <ScrollViewer VerticalScrollBarVisibility="Auto"
-                      HorizontalScrollBarVisibility="Disabled">
-            <StackPanel Margin="20,20,20,10">
-
-                <!-- Header -->
-                <TextBlock Text="SlackWake"
-                           FontSize="22" FontWeight="SemiBold"
-                           Margin="0,0,0,4"/>
-                <TextBlock Text="Wake me up when Slack pings during idle time."
-                           Foreground="#777" Margin="0,0,0,16"/>
-
-                <!-- Toggles -->
-                <StackPanel Margin="0,0,0,12">
-                    <CheckBox Content="Enable monitoring"
-                              IsChecked="{Binding Enabled}"
-                              Margin="0,4"/>
-                    <CheckBox Content="Start with Windows"
-                              IsChecked="{Binding StartWithWindows}"
-                              Margin="0,4"/>
+            <!-- Status (pinned at the very bottom) -->
+            <ui:Card DockPanel.Dock="Bottom" Margin="24,0,24,20" Padding="16,12">
+                <StackPanel Orientation="Horizontal">
+                    <Border Width="12" Height="12" Margin="0,0,10,0"
+                            CornerRadius="6"
+                            Background="{Binding StatusBrush}"
+                            VerticalAlignment="Center"/>
+                    <ui:TextBlock Text="{Binding Status}"
+                                  FontTypography="BodyStrong"
+                                  TextWrapping="Wrap"
+                                  VerticalAlignment="Center"/>
                 </StackPanel>
+            </ui:Card>
 
-                <!-- Idle timeout -->
-                <StackPanel Margin="0,4,0,8">
-                    <TextBlock Style="{StaticResource Label}" Text="Idle timeout (seconds)"/>
-                    <DockPanel LastChildFill="True">
-                        <TextBox DockPanel.Dock="Right"
-                                 Width="64"
-                                 Margin="8,0,0,0"
-                                 TextAlignment="Right"
-                                 helpers:NumericTextBoxBehavior.Enabled="True"
-                                 Text="{Binding IdleTimeoutSeconds, UpdateSourceTrigger=LostFocus}"/>
-                        <Slider Minimum="10" Maximum="1800"
-                                SmallChange="10" LargeChange="60"
-                                Value="{Binding IdleTimeoutSeconds}"
-                                VerticalAlignment="Center"/>
-                    </DockPanel>
-                </StackPanel>
+            <!-- Primary action (pinned just above status) -->
+            <ui:Button DockPanel.Dock="Bottom"
+                       Margin="24,0,24,12"
+                       Height="40"
+                       HorizontalAlignment="Stretch"
+                       HorizontalContentAlignment="Center"
+                       Appearance="Primary"
+                       Icon="{ui:SymbolIcon Eye24}"
+                       Command="{Binding TestOverlayCommand}"
+                       Content="Test overlay with current settings"
+                       ToolTip="Show a sample overlay right now using your current sound and flash settings (bypasses idle check)."/>
 
-                <!-- Alert delay (governs both sound and flash — they start together) -->
-                <StackPanel Margin="0,4,0,8">
-                    <TextBlock Style="{StaticResource Label}"
-                               Text="Alert delay (seconds before sound and flash start)"/>
-                    <DockPanel LastChildFill="True">
-                        <TextBox DockPanel.Dock="Right"
-                                 Width="64"
-                                 Margin="8,0,0,0"
-                                 TextAlignment="Right"
-                                 helpers:NumericTextBoxBehavior.Enabled="True"
-                                 Text="{Binding SoundDelaySeconds, UpdateSourceTrigger=LostFocus}"/>
-                        <Slider Minimum="0" Maximum="120"
-                                SmallChange="1" LargeChange="5"
-                                TickFrequency="10" TickPlacement="BottomRight"
-                                Value="{Binding SoundDelaySeconds}"
-                                VerticalAlignment="Center"/>
-                    </DockPanel>
-                </StackPanel>
+            <!-- Scrollable settings -->
+            <ScrollViewer VerticalScrollBarVisibility="Auto"
+                          HorizontalScrollBarVisibility="Disabled"
+                          Padding="24,8,24,8">
+                <StackPanel>
 
-                <!-- Sound options -->
-                <Border Margin="0,8,0,8"
-                        Background="#FFFFFF" BorderBrush="#E0E0E0" BorderThickness="1"
-                        CornerRadius="4" Padding="12">
-                    <StackPanel>
-                        <TextBlock FontWeight="SemiBold" Foreground="#444" Text="Sound alert"/>
-                        <CheckBox Content="Play sound when alert appears"
-                                  IsChecked="{Binding SoundEnabled}"
-                                  Margin="0,8,0,4"/>
-                        <StackPanel IsEnabled="{Binding SoundEnabled}" Margin="0,4,0,0">
-                            <TextBlock Style="{StaticResource Label}" Text="Sound"/>
-                            <DockPanel LastChildFill="True">
-                                <Button DockPanel.Dock="Right"
-                                        Width="32" Height="26"
-                                        Margin="8,0,0,0"
-                                        Padding="0"
-                                        FontSize="14"
-                                        Content="{Binding PreviewButtonGlyph}"
-                                        Command="{Binding TogglePreviewCommand}"
-                                        ToolTip="Preview selected sound"/>
-                                <ComboBox ItemsSource="{Binding AvailableSounds}"
-                                          SelectedItem="{Binding SelectedSound}"
-                                          DisplayMemberPath="DisplayName"
-                                          VerticalAlignment="Center"
-                                          helpers:SoundHoverPreviewBehavior.PreviewCommand="{Binding PreviewSoundCommand}"
-                                          helpers:SoundHoverPreviewBehavior.StopCommand="{Binding StopPreviewCommand}"
-                                          helpers:SoundHoverPreviewBehavior.DelayMilliseconds="200"/>
-                            </DockPanel>
+                    <!-- Hero header -->
+                    <StackPanel Orientation="Horizontal" Margin="0,8,0,4">
+                        <!-- Brand mark drawn as vector geometry (squircle tile + bell),
+                             not a rasterized .ico. Resolution-independent, so it stays
+                             pixel-sharp at any window size or display scale — the same
+                             bell silhouette as TrayIconFactory / generate-app-icon.ps1. -->
+                        <Grid Width="40" Height="40" VerticalAlignment="Center" Margin="0,0,14,0">
+                            <Border CornerRadius="9.5" SnapsToDevicePixels="True">
+                                <Border.Background>
+                                    <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                        <GradientStop Color="#3ACC90" Offset="0"/>
+                                        <GradientStop Color="#1E9E6A" Offset="1"/>
+                                    </LinearGradientBrush>
+                                </Border.Background>
+                            </Border>
+                            <!-- The bell lives on the canonical 32x32 canvas (same as
+                                 TrayIconFactory / generate-app-icon.ps1). The explicit square
+                                 canvas is what centers it: scaling the Path's own bounds left a
+                                 gap on the left because the geometry starts at x=5, not x=0,
+                                 which shoved the bell to the right. -->
+                            <Viewbox Width="24" Height="24" Stretch="Uniform">
+                                <Canvas Width="32" Height="32">
+                                    <Path Fill="White"
+                                          Data="M14,4 L18,4 L18,7 C23,7.5 24,12 24,16 L24,22 L27,24 L27,25.5 L5,25.5 L5,24 L8,22 L8,16 C8,12 9,7.5 14,7 L14,4 Z M14.5,28 A1.5,1.5 0 1 0 17.5,28 A1.5,1.5 0 1 0 14.5,28 Z"/>
+                                </Canvas>
+                            </Viewbox>
+                        </Grid>
+                        <StackPanel VerticalAlignment="Center">
+                            <ui:TextBlock Text="SlackWake" FontTypography="Title"/>
+                            <ui:TextBlock Text="Wake me up when Slack pings during idle time."
+                                          Style="{StaticResource Caption}"/>
+                        </StackPanel>
+                    </StackPanel>
 
-                            <CheckBox Content="Loop sound until dismissed"
-                                      IsChecked="{Binding SoundLoop}"
-                                      Margin="0,10,0,0"/>
+                    <!-- General -->
+                    <ui:TextBlock Text="General" FontTypography="BodyStrong"
+                                  Margin="2,18,0,8" Appearance="Secondary"/>
+                    <ui:Card Padding="0">
+                        <StackPanel>
+                            <!-- Enable monitoring (master switch) -->
+                            <Grid Margin="16,14,16,14">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <ui:SymbolIcon Grid.Column="0" Symbol="Alert24" FontSize="20"
+                                               Margin="0,0,14,0" VerticalAlignment="Center"/>
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <ui:TextBlock Text="Enable monitoring" FontTypography="Body"/>
+                                    <ui:TextBlock Text="Watch for Slack pings while you're away."
+                                                  Style="{StaticResource Caption}"/>
+                                </StackPanel>
+                                <ui:ToggleSwitch Grid.Column="2" VerticalAlignment="Center"
+                                                 IsChecked="{Binding Enabled}"/>
+                            </Grid>
 
-                            <StackPanel IsEnabled="{Binding SoundLoop}" Margin="20,6,0,0">
-                                <CheckBox Content="Stop looping after a maximum time"
-                                          IsChecked="{Binding SoundLoopMaxEnabled}"/>
-                                <StackPanel IsEnabled="{Binding SoundLoopMaxEnabled}" Margin="0,4,0,0">
-                                    <TextBlock Style="{StaticResource Label}"
-                                               Margin="0,4,0,4"
-                                               Text="Maximum loop duration (seconds)"/>
-                                    <DockPanel LastChildFill="True">
-                                        <TextBox DockPanel.Dock="Right"
-                                                 Width="64"
-                                                 Margin="8,0,0,0"
-                                                 TextAlignment="Right"
-                                                 helpers:NumericTextBoxBehavior.Enabled="True"
-                                                 Text="{Binding SoundLoopMaxSeconds, UpdateSourceTrigger=LostFocus}"/>
-                                        <Slider Minimum="5" Maximum="600"
-                                                SmallChange="5" LargeChange="30"
-                                                TickFrequency="60" TickPlacement="BottomRight"
-                                                Value="{Binding SoundLoopMaxSeconds}"
-                                                VerticalAlignment="Center"/>
-                                    </DockPanel>
+                            <Border Height="1" Background="{DynamicResource DividerStrokeColorDefaultBrush}"/>
+
+                            <!-- Start with Windows -->
+                            <Grid Margin="16,14,16,14">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <ui:SymbolIcon Grid.Column="0" Symbol="Power24" FontSize="20"
+                                               Margin="0,0,14,0" VerticalAlignment="Center"/>
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <ui:TextBlock Text="Start with Windows" FontTypography="Body"/>
+                                    <ui:TextBlock Text="Launch SlackWake automatically at sign-in."
+                                                  Style="{StaticResource Caption}"/>
+                                </StackPanel>
+                                <ui:ToggleSwitch Grid.Column="2" VerticalAlignment="Center"
+                                                 IsChecked="{Binding StartWithWindows}"/>
+                            </Grid>
+                        </StackPanel>
+                    </ui:Card>
+
+                    <!-- Idle & timing -->
+                    <ui:TextBlock Text="Idle &amp; timing" FontTypography="BodyStrong"
+                                  Margin="2,20,0,8" Appearance="Secondary"/>
+                    <ui:Card Padding="16">
+                        <StackPanel>
+                            <!-- Idle timeout -->
+                            <StackPanel>
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                                    <ui:SymbolIcon Symbol="Clock24" FontSize="18"
+                                                   Margin="0,0,8,0" VerticalAlignment="Center"/>
+                                    <ui:TextBlock Text="Idle timeout (seconds)" FontTypography="BodyStrong"
+                                                  VerticalAlignment="Center"/>
+                                </StackPanel>
+                                <DockPanel LastChildFill="True">
+                                    <TextBox DockPanel.Dock="Right"
+                                             Style="{StaticResource NumericBox}"
+                                             helpers:NumericTextBoxBehavior.Enabled="True"
+                                             Text="{Binding IdleTimeoutSeconds, UpdateSourceTrigger=LostFocus}"/>
+                                    <Slider Minimum="10" Maximum="1800"
+                                            SmallChange="10" LargeChange="60"
+                                            Value="{Binding IdleTimeoutSeconds}"
+                                            VerticalAlignment="Center"/>
+                                </DockPanel>
+                            </StackPanel>
+
+                            <Border Height="1" Margin="0,16"
+                                    Background="{DynamicResource DividerStrokeColorDefaultBrush}"/>
+
+                            <!-- Alert delay (governs both sound and flash — they start together) -->
+                            <StackPanel>
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,2">
+                                    <ui:SymbolIcon Symbol="Timer24" FontSize="18"
+                                                   Margin="0,0,8,0" VerticalAlignment="Center"/>
+                                    <ui:TextBlock Text="Alert delay (seconds)" FontTypography="BodyStrong"
+                                                  VerticalAlignment="Center"/>
+                                </StackPanel>
+                                <ui:TextBlock Text="Wait this long after the overlay appears before sound and flash start."
+                                              Style="{StaticResource Caption}" Margin="26,0,0,8"/>
+                                <DockPanel LastChildFill="True">
+                                    <TextBox DockPanel.Dock="Right"
+                                             Style="{StaticResource NumericBox}"
+                                             helpers:NumericTextBoxBehavior.Enabled="True"
+                                             Text="{Binding SoundDelaySeconds, UpdateSourceTrigger=LostFocus}"/>
+                                    <Slider Minimum="0" Maximum="120"
+                                            SmallChange="1" LargeChange="5"
+                                            TickFrequency="10" TickPlacement="BottomRight"
+                                            Value="{Binding SoundDelaySeconds}"
+                                            VerticalAlignment="Center"/>
+                                </DockPanel>
+                            </StackPanel>
+                        </StackPanel>
+                    </ui:Card>
+
+                    <!-- Sound alert -->
+                    <ui:TextBlock Text="Alerts" FontTypography="BodyStrong"
+                                  Margin="2,20,0,8" Appearance="Secondary"/>
+                    <ui:Card Padding="16">
+                        <StackPanel>
+                            <!-- Header row with section toggle -->
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <ui:SymbolIcon Grid.Column="0" Symbol="Speaker224" FontSize="20"
+                                               Margin="0,0,14,0" VerticalAlignment="Center"/>
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <ui:TextBlock Text="Sound alert" FontTypography="Body"/>
+                                    <ui:TextBlock Text="Play a sound when the overlay appears."
+                                                  Style="{StaticResource Caption}"/>
+                                </StackPanel>
+                                <ui:ToggleSwitch Grid.Column="2" VerticalAlignment="Center"
+                                                 IsChecked="{Binding SoundEnabled}"/>
+                            </Grid>
+
+                            <StackPanel IsEnabled="{Binding SoundEnabled}" Margin="0,16,0,0">
+                                <ui:TextBlock Text="Sound" Style="{StaticResource FieldLabel}"/>
+                                <DockPanel LastChildFill="True">
+                                    <ui:Button DockPanel.Dock="Right"
+                                               Width="40" Height="36"
+                                               Margin="10,0,0,0"
+                                               Padding="0"
+                                               FontSize="15"
+                                               VerticalAlignment="Center"
+                                               Content="{Binding PreviewButtonGlyph}"
+                                               Command="{Binding TogglePreviewCommand}"
+                                               ToolTip="Preview selected sound"/>
+                                    <ComboBox ItemsSource="{Binding AvailableSounds}"
+                                              SelectedItem="{Binding SelectedSound}"
+                                              DisplayMemberPath="DisplayName"
+                                              VerticalAlignment="Center"
+                                              helpers:SoundHoverPreviewBehavior.PreviewCommand="{Binding PreviewSoundCommand}"
+                                              helpers:SoundHoverPreviewBehavior.StopCommand="{Binding StopPreviewCommand}"
+                                              helpers:SoundHoverPreviewBehavior.DelayMilliseconds="200"/>
+                                </DockPanel>
+
+                                <Border Height="1" Margin="0,16"
+                                        Background="{DynamicResource DividerStrokeColorDefaultBrush}"/>
+
+                                <!-- Loop sound -->
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <ui:TextBlock Grid.Column="0" Text="Loop sound until dismissed"
+                                                  FontTypography="Body" VerticalAlignment="Center"/>
+                                    <ui:ToggleSwitch Grid.Column="1" VerticalAlignment="Center"
+                                                     IsChecked="{Binding SoundLoop}"/>
+                                </Grid>
+
+                                <StackPanel IsEnabled="{Binding SoundLoop}" Margin="0,12,0,0">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <ui:TextBlock Grid.Column="0" Text="Stop looping after a maximum time"
+                                                      FontTypography="Body" VerticalAlignment="Center"
+                                                      TextWrapping="Wrap"/>
+                                        <ui:ToggleSwitch Grid.Column="1" VerticalAlignment="Center"
+                                                         IsChecked="{Binding SoundLoopMaxEnabled}"/>
+                                    </Grid>
+                                    <StackPanel IsEnabled="{Binding SoundLoopMaxEnabled}" Margin="0,10,0,0">
+                                        <ui:TextBlock Text="Maximum loop duration (seconds)"
+                                                      Style="{StaticResource FieldLabel}"/>
+                                        <DockPanel LastChildFill="True">
+                                            <TextBox DockPanel.Dock="Right"
+                                                     Style="{StaticResource NumericBox}"
+                                                     helpers:NumericTextBoxBehavior.Enabled="True"
+                                                     Text="{Binding SoundLoopMaxSeconds, UpdateSourceTrigger=LostFocus}"/>
+                                            <Slider Minimum="5" Maximum="600"
+                                                    SmallChange="5" LargeChange="30"
+                                                    TickFrequency="60" TickPlacement="BottomRight"
+                                                    Value="{Binding SoundLoopMaxSeconds}"
+                                                    VerticalAlignment="Center"/>
+                                        </DockPanel>
+                                    </StackPanel>
                                 </StackPanel>
                             </StackPanel>
                         </StackPanel>
-                    </StackPanel>
-                </Border>
+                    </ui:Card>
 
-                <!-- Visual flash -->
-                <Border Margin="0,8,0,8"
-                        Background="#FFFFFF" BorderBrush="#E0E0E0" BorderThickness="1"
-                        CornerRadius="4" Padding="12">
-                    <StackPanel>
-                        <TextBlock FontWeight="SemiBold" Foreground="#444" Text="Visual flash"/>
-                        <CheckBox Content="Flash the overlay between two colors"
-                                  IsChecked="{Binding FlashEnabled}"
-                                  Margin="0,8,0,4"/>
-                        <StackPanel IsEnabled="{Binding FlashEnabled}" Margin="0,4,0,0">
-                            <TextBlock Style="{StaticResource Label}"
-                                       Margin="0,4,0,4"
-                                       Text="Flash speed (milliseconds per color change)"/>
-                            <DockPanel LastChildFill="True">
-                                <TextBox DockPanel.Dock="Right"
-                                         Width="64"
-                                         Margin="8,0,0,0"
-                                         TextAlignment="Right"
-                                         helpers:NumericTextBoxBehavior.Enabled="True"
-                                         Text="{Binding FlashIntervalMs, UpdateSourceTrigger=LostFocus}"/>
-                                <Slider Minimum="100" Maximum="2000"
-                                        SmallChange="50" LargeChange="200"
-                                        TickFrequency="200" TickPlacement="BottomRight"
-                                        Value="{Binding FlashIntervalMs}"
-                                        VerticalAlignment="Center"/>
-                            </DockPanel>
-
-                            <TextBlock Style="{StaticResource Label}"
-                                       Margin="0,12,0,4"
-                                       Text="Flash colors (click a swatch to change; overlay text picks its own contrast)"/>
+                    <!-- Visual flash -->
+                    <ui:Card Padding="16" Margin="0,12,0,0">
+                        <StackPanel>
                             <Grid>
                                 <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
                                     <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="8"/>
-                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
-                                <Button Grid.Column="0"
-                                        Style="{StaticResource ColorSwatch}"
-                                        Height="32"
-                                        Background="{Binding FlashColorABrush}"
-                                        Foreground="{Binding FlashColorAContrastBrush}"
-                                        Command="{Binding PickFlashColorACommand}"
-                                        Content="{Binding FlashColorA}"
-                                        ToolTip="Click to choose the first flash color"/>
-                                <Button Grid.Column="2"
-                                        Style="{StaticResource ColorSwatch}"
-                                        Height="32"
-                                        Background="{Binding FlashColorBBrush}"
-                                        Foreground="{Binding FlashColorBContrastBrush}"
-                                        Command="{Binding PickFlashColorBCommand}"
-                                        Content="{Binding FlashColorB}"
-                                        ToolTip="Click to choose the second flash color"/>
+                                <ui:SymbolIcon Grid.Column="0" Symbol="Flash24" FontSize="20"
+                                               Margin="0,0,14,0" VerticalAlignment="Center"/>
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <ui:TextBlock Text="Visual flash" FontTypography="Body"/>
+                                    <ui:TextBlock Text="Strobe the overlay between two colors."
+                                                  Style="{StaticResource Caption}"/>
+                                </StackPanel>
+                                <ui:ToggleSwitch Grid.Column="2" VerticalAlignment="Center"
+                                                 IsChecked="{Binding FlashEnabled}"/>
                             </Grid>
+
+                            <StackPanel IsEnabled="{Binding FlashEnabled}" Margin="0,16,0,0">
+                                <ui:TextBlock Text="Flash speed (milliseconds per color change)"
+                                              Style="{StaticResource FieldLabel}"/>
+                                <DockPanel LastChildFill="True">
+                                    <TextBox DockPanel.Dock="Right"
+                                             Style="{StaticResource NumericBox}"
+                                             helpers:NumericTextBoxBehavior.Enabled="True"
+                                             Text="{Binding FlashIntervalMs, UpdateSourceTrigger=LostFocus}"/>
+                                    <Slider Minimum="100" Maximum="2000"
+                                            SmallChange="50" LargeChange="200"
+                                            TickFrequency="200" TickPlacement="BottomRight"
+                                            Value="{Binding FlashIntervalMs}"
+                                            VerticalAlignment="Center"/>
+                                </DockPanel>
+
+                                <ui:TextBlock Text="Flash colors"
+                                              Style="{StaticResource FieldLabel}" Margin="0,16,0,2"/>
+                                <ui:TextBlock Text="Click a swatch to change it; the overlay text picks its own contrast."
+                                              Style="{StaticResource Caption}" Margin="0,0,0,8"/>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="12"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Button Grid.Column="0"
+                                            Style="{StaticResource ColorSwatch}"
+                                            Background="{Binding FlashColorABrush}"
+                                            Foreground="{Binding FlashColorAContrastBrush}"
+                                            Command="{Binding PickFlashColorACommand}"
+                                            Content="{Binding FlashColorA}"
+                                            ToolTip="Click to choose the first flash color"/>
+                                    <Button Grid.Column="2"
+                                            Style="{StaticResource ColorSwatch}"
+                                            Background="{Binding FlashColorBBrush}"
+                                            Foreground="{Binding FlashColorBContrastBrush}"
+                                            Command="{Binding PickFlashColorBCommand}"
+                                            Content="{Binding FlashColorB}"
+                                            ToolTip="Click to choose the second flash color"/>
+                                </Grid>
+                            </StackPanel>
                         </StackPanel>
-                    </StackPanel>
-                </Border>
+                    </ui:Card>
 
-                <!-- Setup note -->
-                <Border Margin="0,8,0,8"
-                        Background="#FFF8E1" BorderBrush="#F1D479" BorderThickness="1"
-                        CornerRadius="4" Padding="10">
-                    <StackPanel>
-                        <TextBlock FontWeight="SemiBold" Foreground="#665" Text="Setup"/>
-                        <TextBlock Foreground="#665" Margin="0,4,0,0" TextWrapping="Wrap"
-                                   Text="SlackWake reads Slack's native Windows toasts. Make sure the Slack desktop app is running, and that Windows notifications are allowed for SlackWake (Settings &gt; Privacy &amp; security &gt; Notifications)."/>
-                    </StackPanel>
-                </Border>
+                    <!-- Setup note -->
+                    <ui:InfoBar Margin="0,20,0,8"
+                                IsOpen="True"
+                                IsClosable="False"
+                                Severity="Informational"
+                                Title="Setup"
+                                Message="SlackWake reads Slack's native Windows toasts. Make sure the Slack desktop app is running, and that Windows notifications are allowed for SlackWake (Settings &gt; Privacy &amp; security &gt; Notifications)."/>
 
-            </StackPanel>
-        </ScrollViewer>
-    </DockPanel>
-</Window>
+                </StackPanel>
+            </ScrollViewer>
+        </DockPanel>
+    </Grid>
+</ui:FluentWindow>

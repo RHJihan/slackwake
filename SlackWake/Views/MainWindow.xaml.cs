@@ -1,9 +1,9 @@
 using System.ComponentModel;
-using System.Windows;
+using Wpf.Ui.Controls;
 
 namespace SlackWake.Views;
 
-public partial class MainWindow : Window
+public partial class MainWindow : FluentWindow
 {
     public MainWindow()
     {
