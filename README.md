@@ -67,6 +67,14 @@ Crucially, **SlackWake never talks to Slack's servers.** It does not use the Sla
 
 ---
 
+## Screenshots
+<p align="center">
+  <img src="doc/SlackWake.png" width="400">
+  <img src="doc/SlackWake2.png" width="400">
+</p>
+
+---
+
 ## How it works
 
 1. **`IdleMonitorService`** polls the Win32 `GetLastInputInfo` API once per second to determine how long it's been since any keyboard/mouse input system-wide. When that exceeds your idle timeout, SlackWake becomes *active (armed)*.
