@@ -523,20 +523,40 @@ public class MainViewModel : ObservableObject
         var keywords = _settings.KeywordFilterText;
         if (string.IsNullOrWhiteSpace(keywords)) return false;
 
-        var haystack = string.Join(' ',
+        // Slack carries the message's formatting markers inline in the toast text:
+        // bold is *word*, italic _word_, strikethrough ~word~, code `word`. A raw
+        // substring search would miss "deploy failed" inside "*deploy* failed", so
+        // strip those markers from the haystack (and the keyword) before matching.
+        var haystack = StripFormatting(string.Join(' ',
             evt.Sender ?? string.Empty,
             evt.Channel ?? string.Empty,
-            evt.Text ?? string.Empty);
+            evt.Text ?? string.Empty));
 
         foreach (var keyword in ParseKeywords(keywords))
         {
-            if (haystack.IndexOf(keyword, StringComparison.OrdinalIgnoreCase) >= 0)
+            if (haystack.IndexOf(StripFormatting(keyword), StringComparison.OrdinalIgnoreCase) >= 0)
             {
                 matched = keyword;
                 return true;
             }
         }
         return false;
+    }
+
+    /// <summary>
+    /// Removes Slack mrkdwn formatting delimiters (<c>*</c> bold, <c>_</c> italic,
+    /// <c>~</c> strikethrough, <c>`</c> code) so keyword matching sees the underlying
+    /// words. Slack emits these markers inline in the notification text, which would
+    /// otherwise break substring matches against unformatted keywords.
+    /// </summary>
+    private static string StripFormatting(string text)
+    {
+        var sb = new StringBuilder(text.Length);
+        foreach (var c in text)
+        {
+            if (c is not ('*' or '_' or '~' or '`')) sb.Append(c);
+        }
+        return sb.ToString();
     }
 
     /// <summary>
