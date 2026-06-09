@@ -62,9 +62,21 @@ public class AppSettings
     public bool AlertAutoStopEnabled { get; set; } = false;
 
     /// <summary>Cap, in seconds, on how long continuous alerts run when
-    /// <see cref="AlertAutoStopEnabled"/> is on. Applies to both the looping sound
-    /// and the visual flash.</summary>
+    /// <see cref="AlertAutoStopEnabled"/> is on. Applies to the looping sound, and
+    /// to the visual flash when <see cref="AlertAutoStopIncludesVisual"/> is on.</summary>
     public int AlertMaxDurationSeconds { get; set; } = 60;
+
+    /// <summary>When true, the auto-stop cap silences the looping sound after
+    /// <see cref="AlertMaxDurationSeconds"/>; when false the sound keeps looping until
+    /// the overlay is dismissed. Only consulted when <see cref="AlertAutoStopEnabled"/>
+    /// is on. Defaults to true to preserve the original "stop everything" behavior.</summary>
+    public bool AlertAutoStopIncludesSound { get; set; } = true;
+
+    /// <summary>When true, the auto-stop cap also tears down the visual flash; when
+    /// false the flash keeps strobing until the overlay is dismissed. Only consulted
+    /// when <see cref="AlertAutoStopEnabled"/> is on. Defaults to true to preserve the
+    /// original "stop everything" behavior.</summary>
+    public bool AlertAutoStopIncludesVisual { get; set; } = true;
 
     /// <summary>When true, Slack pings whose content matches any entry in
     /// <see cref="KeywordFilterText"/> are silently dropped — no overlay, no sound,

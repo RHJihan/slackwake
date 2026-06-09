@@ -404,9 +404,10 @@
                             <Border Height="1" Margin="0,16"
                                     Background="{DynamicResource DividerStrokeColorDefaultBrush}"/>
 
-                            <!-- Auto-stop (shared by the looping sound and the visual flash).
-                                 Greys out unless at least one continuous alert is active, since
-                                 a single sound play and a dismissed overlay end on their own. -->
+                            <!-- Auto-stop. Greys out unless at least one continuous alert is
+                                 active, since a single sound play and a dismissed overlay end
+                                 on their own. The sound and the visual flash opt in
+                                 independently via the two toggles below. -->
                             <StackPanel IsEnabled="{Binding CanAutoStopAlerts}">
                                 <Grid>
                                     <Grid.ColumnDefinitions>
@@ -418,7 +419,7 @@
                                                    Margin="0,0,14,0" VerticalAlignment="Center"/>
                                     <StackPanel Grid.Column="1" VerticalAlignment="Center">
                                         <ui:TextBlock Text="Stop alerts automatically" FontTypography="Body"/>
-                                        <ui:TextBlock Text="Stop the looping sound and visual flash after a set time, even if the overlay is still open."
+                                        <ui:TextBlock Text="Stop continuous alerts after a set time, even if the overlay is still open."
                                                       Style="{StaticResource Caption}"/>
                                     </StackPanel>
                                     <ui:ToggleSwitch Grid.Column="2" VerticalAlignment="Center"
@@ -426,8 +427,28 @@
                                 </Grid>
 
                                 <StackPanel IsEnabled="{Binding AlertAutoStopEnabled}" Margin="0,16,0,0">
+                                    <!-- Which alerts to stop, then how long to wait — reads as one
+                                         sentence with the master row: "Stop [these alerts]
+                                         automatically [after this long]." Check boxes (not toggle
+                                         switches) because this is a multi-select subset of one
+                                         setting, not two standalone features. Each greys out when its
+                                         channel isn't a continuous alert — nothing to time-box there. -->
+                                    <ui:TextBlock Text="Alerts to stop" Style="{StaticResource FieldLabel}"
+                                                  Margin="0,0,0,2"/>
+                                    <ui:TextBlock Text="Unchecked alerts keep running until you dismiss the overlay."
+                                                  Style="{StaticResource Caption}" Margin="0,0,0,8"/>
+                                    <StackPanel Orientation="Horizontal">
+                                        <CheckBox Content="Sound alert"
+                                                  IsEnabled="{Binding CanAutoStopSound}"
+                                                  IsChecked="{Binding AlertAutoStopIncludesSound}"
+                                                  Margin="0,0,28,0"/>
+                                        <CheckBox Content="Visual flash"
+                                                  IsEnabled="{Binding CanAutoStopVisual}"
+                                                  IsChecked="{Binding AlertAutoStopIncludesVisual}"/>
+                                    </StackPanel>
+
                                     <ui:TextBlock Text="Maximum duration (seconds)"
-                                                  Style="{StaticResource FieldLabel}"/>
+                                                  Style="{StaticResource FieldLabel}" Margin="0,16,0,6"/>
                                     <DockPanel LastChildFill="True">
                                         <TextBox DockPanel.Dock="Right"
                                                  Style="{StaticResource NumericBox}"

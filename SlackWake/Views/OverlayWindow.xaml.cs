@@ -57,10 +57,13 @@ public partial class OverlayWindow : Window
 
     private int _alertDelaySeconds;
 
-    // Shared auto-stop cap: when enabled, both the looping sound and the visual flash
-    // stop after _alertMaxDurationSeconds even if the overlay is never dismissed.
+    // Auto-stop cap: when enabled, continuous alerts stop after _alertMaxDurationSeconds
+    // even if the overlay is never dismissed. The sound and the visual flash each opt in
+    // independently via _alertAutoStopIncludesSound / _alertAutoStopIncludesVisual.
     private bool _alertAutoStopEnabled;
     private int _alertMaxDurationSeconds;
+    private bool _alertAutoStopIncludesSound;
+    private bool _alertAutoStopIncludesVisual;
 
     public OverlayWindow(string? sender, string? channel, string? text)
         : this(sender, channel, text,
@@ -69,7 +72,8 @@ public partial class OverlayWindow : Window
                soundFilePath: string.Empty,
                flashEnabled: false, flashIntervalMs: 0,
                flashColorA: Colors.Black, flashColorB: Colors.White,
-               alertAutoStopEnabled: false, alertMaxDurationSeconds: 0)
+               alertAutoStopEnabled: false, alertMaxDurationSeconds: 0,
+               alertAutoStopIncludesSound: true, alertAutoStopIncludesVisual: true)
     {
     }
 
@@ -86,7 +90,9 @@ public partial class OverlayWindow : Window
         Color flashColorA,
         Color flashColorB,
         bool alertAutoStopEnabled,
-        int alertMaxDurationSeconds)
+        int alertMaxDurationSeconds,
+        bool alertAutoStopIncludesSound,
+        bool alertAutoStopIncludesVisual)
     {
         InitializeComponent();
 
@@ -101,6 +107,8 @@ public partial class OverlayWindow : Window
 
         _alertAutoStopEnabled = alertAutoStopEnabled;
         _alertMaxDurationSeconds = Math.Max(1, alertMaxDurationSeconds);
+        _alertAutoStopIncludesSound = alertAutoStopIncludesSound;
+        _alertAutoStopIncludesVisual = alertAutoStopIncludesVisual;
 
         _flashEnabled = flashEnabled;
         _flashIntervalMs = Math.Clamp(flashIntervalMs, 100, 2000);
@@ -194,7 +202,7 @@ public partial class OverlayWindow : Window
 
         if (_soundLoop)
         {
-            TimeSpan? max = _alertAutoStopEnabled
+            TimeSpan? max = _alertAutoStopEnabled && _alertAutoStopIncludesSound
                 ? TimeSpan.FromSeconds(_alertMaxDurationSeconds)
                 : null;
             _loopingPlayer = new LoopingSoundPlayer();
@@ -233,10 +241,10 @@ public partial class OverlayWindow : Window
 
         _flashRunning = true;
 
-        // Honor the shared auto-stop cap. The looping sound enforces its own cap inside
-        // LoopingSoundPlayer; the flash animation repeats forever, so we time-box it here
-        // with a one-shot timer that tears the strobe down after the same duration.
-        if (_alertAutoStopEnabled)
+        // Honor the auto-stop cap for the flash. The looping sound enforces its own cap
+        // inside LoopingSoundPlayer; the flash animation repeats forever, so we time-box
+        // it here with a one-shot timer that tears the strobe down after the duration.
+        if (_alertAutoStopEnabled && _alertAutoStopIncludesVisual)
         {
             _flashStopTimer = new DispatcherTimer
             {

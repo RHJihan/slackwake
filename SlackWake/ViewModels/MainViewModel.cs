@@ -162,6 +162,7 @@ public class MainViewModel : ObservableObject
             if (_settings.SoundEnabled == value) return;
             _settings.SoundEnabled = value;
             Raise();
+            Raise(nameof(CanAutoStopSound));
             Raise(nameof(CanAutoStopAlerts));
             Save();
         }
@@ -192,6 +193,7 @@ public class MainViewModel : ObservableObject
             if (_settings.SoundLoop == value) return;
             _settings.SoundLoop = value;
             Raise();
+            Raise(nameof(CanAutoStopSound));
             Raise(nameof(CanAutoStopAlerts));
             Save();
         }
@@ -229,11 +231,47 @@ public class MainViewModel : ObservableObject
         }
     }
 
+    /// <summary>When on, the auto-stop cap silences the looping sound. When off, the
+    /// sound keeps looping until the overlay is dismissed.</summary>
+    public bool AlertAutoStopIncludesSound
+    {
+        get => _settings.AlertAutoStopIncludesSound;
+        set
+        {
+            if (_settings.AlertAutoStopIncludesSound == value) return;
+            _settings.AlertAutoStopIncludesSound = value;
+            Raise();
+            Save();
+        }
+    }
+
+    /// <summary>When on, the auto-stop cap also stops the visual flash (the original
+    /// behavior). When off, the flash keeps running until the overlay is dismissed.</summary>
+    public bool AlertAutoStopIncludesVisual
+    {
+        get => _settings.AlertAutoStopIncludesVisual;
+        set
+        {
+            if (_settings.AlertAutoStopIncludesVisual == value) return;
+            _settings.AlertAutoStopIncludesVisual = value;
+            Raise();
+            Save();
+        }
+    }
+
     /// <summary>Whether the shared auto-stop cap can actually do anything — true when at
     /// least one <em>continuous</em> alert is active (the sound is set to loop, or the
     /// visual flash is on). When false the auto-stop control greys out, since a single
     /// sound play and a dismissed overlay already end on their own.</summary>
-    public bool CanAutoStopAlerts => (SoundEnabled && SoundLoop) || FlashEnabled;
+    public bool CanAutoStopAlerts => CanAutoStopSound || CanAutoStopVisual;
+
+    /// <summary>True when the looping sound is the kind of continuous alert the cap can
+    /// stop. Greys out the per-channel "sound" toggle otherwise.</summary>
+    public bool CanAutoStopSound => SoundEnabled && SoundLoop;
+
+    /// <summary>True when the visual flash is active. Greys out the per-channel "visual
+    /// flash" toggle otherwise.</summary>
+    public bool CanAutoStopVisual => FlashEnabled;
 
     public bool FlashEnabled
     {
@@ -243,6 +281,7 @@ public class MainViewModel : ObservableObject
             if (_settings.FlashEnabled == value) return;
             _settings.FlashEnabled = value;
             Raise();
+            Raise(nameof(CanAutoStopVisual));
             Raise(nameof(CanAutoStopAlerts));
             Save();
         }

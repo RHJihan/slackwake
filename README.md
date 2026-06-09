@@ -58,7 +58,7 @@ Crucially, **SlackWake never talks to Slack's servers.** It does not use the Sla
 - **Looping sound** — Keep the alert sound replaying until you dismiss the overlay (with a short gap between plays).
 - **Configurable alert delay** — Wait a few seconds after the overlay appears before sound and flash kick in (default 5s), so a glance is enough to dismiss it without the full sensory assault.
 - **Visual flash** — Optionally strobe the overlay between two configurable colors to make it impossible to ignore from across the room. Overlay text automatically picks black or white per the [WCAG](https://www.w3.org/TR/WCAG21/) contrast formula so it stays legible against whatever colors you choose. Off by default; flash speed is bounded to stay clear of photosensitive-seizure territory.
-- **Auto-stop with a shared cap** — A single *maximum duration* time-boxes any continuous alert, so the looping sound **and** the visual flash both self-stop after the cap even if the overlay is never dismissed.
+- **Auto-stop with per-channel control** — A *maximum duration* time-boxes continuous alerts so they self-stop even if the overlay is never dismissed. Toggle independently whether the cap ends the **looping sound**, the **visual flash**, or both — leave one on to keep, say, a silent flash going while the noise cuts out.
 - **Keyword muting** — Silently drop pings whose sender, channel, or text matches your keyword list (case-insensitive substring). Comma- or newline-separated; wrap a phrase in double quotes to match it verbatim. Useful for muting noisy bots, channels, or topics while away.
 - **System-tray native** — Lives in the notification area with an at-a-glance status icon: green = armed, white = idle/paused, slashed = disabled. Left-click opens settings; right-click for the menu.
 - **Start with Windows** — Optional per-user auto-launch at sign-in (silent, into the tray).
@@ -171,6 +171,8 @@ A diagnostic log is written alongside it at `%AppData%\SlackWake\debug.log` (app
   "FlashColorB": "#FFFFFF",
   "AlertAutoStopEnabled": false,
   "AlertMaxDurationSeconds": 60,
+  "AlertAutoStopIncludesSound": true,
+  "AlertAutoStopIncludesVisual": true,
   "KeywordFilterEnabled": false,
   "KeywordFilterText": ""
 }
@@ -194,8 +196,10 @@ Hand-editing the file while the app is running is safe — the next save from th
 | `FlashIntervalMs` | int | `500` | Half-cycle (one color→other) in ms. Clamped **100–2000ms** — the floor keeps flashing below seizure-risk frequency. |
 | `FlashColorA` | string | `#000000` | First flash color (hex). |
 | `FlashColorB` | string | `#FFFFFF` | Second flash color (hex). Overlay text contrast is derived automatically. |
-| `AlertAutoStopEnabled` | bool | `false` | Auto-stop continuous alerts after a cap. Shared by the looping sound **and** the visual flash. |
+| `AlertAutoStopEnabled` | bool | `false` | Master switch: auto-stop continuous alerts after a cap. |
 | `AlertMaxDurationSeconds` | int | `60` | How long continuous alerts run when auto-stop is on. Clamped **5–600s**. |
+| `AlertAutoStopIncludesSound` | bool | `true` | When auto-stop is on, also silence the **looping sound** at the cap. Off = sound runs until dismissed. |
+| `AlertAutoStopIncludesVisual` | bool | `true` | When auto-stop is on, also stop the **visual flash** at the cap. Off = flash runs until dismissed. |
 | `KeywordFilterEnabled` | bool | `false` | Mute pings matching a keyword. |
 | `KeywordFilterText` | string | `""` | Comma- or newline-separated keywords; case-insensitive substring match against sender + channel + text. Wrap a phrase in `"double quotes"` to match it verbatim (including commas). |
 

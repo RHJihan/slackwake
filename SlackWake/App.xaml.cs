@@ -166,9 +166,11 @@ public partial class App : System.Windows.Application
         var flashIntervalMs = _vm?.Settings.FlashIntervalMs ?? 500;
         var flashColorA = ColorUtil.Parse(_vm?.Settings.FlashColorA ?? "#000000");
         var flashColorB = ColorUtil.Parse(_vm?.Settings.FlashColorB ?? "#FFFFFF");
-        // Shared auto-stop cap — governs both the looping sound and the visual flash.
+        // Auto-stop cap — the sound and the visual flash opt in independently.
         var alertAutoStopEnabled = _vm?.Settings.AlertAutoStopEnabled ?? false;
         var alertMaxDurationSeconds = _vm?.Settings.AlertMaxDurationSeconds ?? 60;
+        var alertAutoStopIncludesSound = _vm?.Settings.AlertAutoStopIncludesSound ?? true;
+        var alertAutoStopIncludesVisual = _vm?.Settings.AlertAutoStopIncludesVisual ?? true;
 
         var first = true;
         foreach (var screen in Forms.Screen.AllScreens)
@@ -180,7 +182,8 @@ public partial class App : System.Windows.Application
                 soundLoop, soundPath,
                 flashEnabled, flashIntervalMs,
                 flashColorA, flashColorB,
-                alertAutoStopEnabled, alertMaxDurationSeconds)
+                alertAutoStopEnabled, alertMaxDurationSeconds,
+                alertAutoStopIncludesSound, alertAutoStopIncludesVisual)
             {
                 WindowStartupLocation = WindowStartupLocation.Manual
             };
