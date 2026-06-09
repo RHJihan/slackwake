@@ -15,6 +15,10 @@
 
     <ui:FluentWindow.Resources>
 
+        <!-- Collapses an element when its bound bool is false (used for the
+             minutes/seconds breakdown that only shows past a one-minute cap). -->
+        <BooleanToVisibilityConverter x:Key="BoolToVis"/>
+
         <!-- Caption beneath each section/row title. Kept as a single style so the
              secondary-text treatment stays consistent across the whole window. -->
         <Style TargetType="ui:TextBlock" x:Key="Caption">
@@ -266,7 +270,6 @@
                                              Text="{Binding SoundDelaySeconds, UpdateSourceTrigger=LostFocus}"/>
                                     <Slider Minimum="0" Maximum="120"
                                             SmallChange="1" LargeChange="5"
-                                            TickFrequency="10" TickPlacement="BottomRight"
                                             Value="{Binding SoundDelaySeconds}"
                                             VerticalAlignment="Center"/>
                                 </DockPanel>
@@ -308,11 +311,17 @@
                                                Width="40" Height="36"
                                                Margin="10,0,0,0"
                                                Padding="0"
-                                               FontSize="15"
                                                VerticalAlignment="Center"
-                                               Content="{Binding PreviewButtonGlyph}"
+                                               HorizontalContentAlignment="Center"
+                                               VerticalContentAlignment="Center"
                                                Command="{Binding TogglePreviewCommand}"
-                                               ToolTip="Preview selected sound"/>
+                                               ToolTip="Preview selected sound">
+                                        <ui:Button.Icon>
+                                            <ui:SymbolIcon Symbol="{Binding PreviewButtonIcon}"
+                                                           Filled="True"
+                                                           FontSize="18"/>
+                                        </ui:Button.Icon>
+                                    </ui:Button>
                                     <ComboBox ItemsSource="{Binding AvailableSounds}"
                                               SelectedItem="{Binding SelectedSound}"
                                               DisplayMemberPath="DisplayName"
@@ -369,7 +378,6 @@
                                              Text="{Binding FlashIntervalMs, UpdateSourceTrigger=LostFocus}"/>
                                     <Slider Minimum="100" Maximum="2000"
                                             SmallChange="50" LargeChange="200"
-                                            TickFrequency="200" TickPlacement="BottomRight"
                                             Value="{Binding FlashIntervalMs}"
                                             VerticalAlignment="Center"/>
                                 </DockPanel>
@@ -456,12 +464,15 @@
                                                  Style="{StaticResource NumericBox}"
                                                  helpers:NumericTextBoxBehavior.Enabled="True"
                                                  Text="{Binding AlertMaxDurationSeconds, UpdateSourceTrigger=LostFocus}"/>
-                                        <Slider Minimum="5" Maximum="600"
-                                                SmallChange="5" LargeChange="30"
-                                                TickFrequency="60" TickPlacement="BottomRight"
+                                        <Slider Minimum="5" Maximum="3600"
+                                                SmallChange="5" LargeChange="60"
                                                 Value="{Binding AlertMaxDurationSeconds}"
                                                 VerticalAlignment="Center"/>
                                     </DockPanel>
+                                    <ui:TextBlock Text="{Binding AlertMaxDurationFriendly}"
+                                                  Style="{StaticResource Caption}"
+                                                  Margin="0,6,0,0"
+                                                  Visibility="{Binding ShowAlertMaxDurationFriendly, Converter={StaticResource BoolToVis}}"/>
                                 </StackPanel>
                             </StackPanel>
                         </StackPanel>

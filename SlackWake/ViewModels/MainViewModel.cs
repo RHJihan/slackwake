@@ -65,10 +65,10 @@ public class MainViewModel : ObservableObject
         _preview = new PreviewPlayer();
         _preview.IsPlayingChanged += (_, _) =>
         {
-            // The play/pause glyph and the IsPlaying flag flip together — fire both
-            // notifications so any binding (button content, future state styling) updates.
+            // The play/pause icon and the IsPlaying flag flip together — fire both
+            // notifications so any binding (button icon, future state styling) updates.
             Raise(nameof(IsPreviewPlaying));
-            Raise(nameof(PreviewButtonGlyph));
+            Raise(nameof(PreviewButtonIcon));
         };
         TogglePreviewCommand = new RelayCommand(TogglePreview);
         PreviewSoundCommand = new RelayCommand<SoundLibrary.SoundOption>(PreviewSound);
@@ -215,9 +215,9 @@ public class MainViewModel : ObservableObject
         set
         {
             // Lower bound = 5s so the cap is meaningfully different from "just play once";
-            // upper bound = 600s (10 min) since past that point you're really asking for
-            // the alert to run until dismissed anyway.
-            var clamped = Math.Clamp(value, 5, 600);
+            // upper bound = 3600s (1 hour) — past an hour you're really asking for the
+            // alert to run until dismissed anyway.
+            var clamped = Math.Clamp(value, 5, 3600);
             if (_settings.AlertMaxDurationSeconds == clamped)
             {
                 if (value != clamped) Raise();
@@ -225,8 +225,28 @@ public class MainViewModel : ObservableObject
             }
             _settings.AlertMaxDurationSeconds = clamped;
             Raise();
+            Raise(nameof(AlertMaxDurationFriendly));
+            Raise(nameof(ShowAlertMaxDurationFriendly));
             Save();
         }
+    }
+
+    /// <summary>Human-readable breakdown of the cap (e.g. "6 minutes 15 seconds"),
+    /// shown beneath the slider so a large second-count is easy to grasp.</summary>
+    public string AlertMaxDurationFriendly => FormatDuration(_settings.AlertMaxDurationSeconds);
+
+    /// <summary>Only worth spelling out once the cap passes a minute — below that the
+    /// raw seconds are already clear.</summary>
+    public bool ShowAlertMaxDurationFriendly => _settings.AlertMaxDurationSeconds > 60;
+
+    private static string FormatDuration(int totalSeconds)
+    {
+        var minutes = totalSeconds / 60;
+        var seconds = totalSeconds % 60;
+        var parts = new List<string>(2);
+        if (minutes > 0) parts.Add($"{minutes} minute{(minutes == 1 ? "" : "s")}");
+        if (seconds > 0) parts.Add($"{seconds} second{(seconds == 1 ? "" : "s")}");
+        return string.Join(" ", parts);
     }
 
     /// <summary>When on, the auto-stop cap silences the looping sound. When off, the
@@ -416,8 +436,11 @@ public class MainViewModel : ObservableObject
 
     public bool IsPreviewPlaying => _preview.IsPlaying;
 
-    // Unicode play / pause glyphs render in any font — no Segoe MDL2 dependency.
-    public string PreviewButtonGlyph => _preview.IsPlaying ? "⏸" : "▶";
+    // Fluent System Icons play / pause symbols — the industry-standard transport
+    // glyphs (matching iOS, Slack, and Discord sound pickers). Rendered filled by
+    // the SymbolIcon in the view for a solid, modern look.
+    public Wpf.Ui.Controls.SymbolRegular PreviewButtonIcon =>
+        _preview.IsPlaying ? Wpf.Ui.Controls.SymbolRegular.Pause24 : Wpf.Ui.Controls.SymbolRegular.Play24;
 
     private void TogglePreview()
     {
