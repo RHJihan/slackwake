@@ -55,23 +55,16 @@ Crucially, **SlackWake never talks to Slack's servers.** It does not use the Sla
 - **Fullscreen multi-monitor overlay** — A topmost, fullscreen alert appears on every connected display simultaneously, with the message's channel/sender and body text. Correctly positioned per-monitor even across mixed-DPI setups.
 - **Dismiss any way you like** — `Esc`, a mouse click, or any keystroke closes the overlay on all monitors at once.
 - **Sound alerts** — Optionally play a sound when the overlay appears. Choose the built-in system sound or **any `.wav` from `C:\Windows\Media`**, preview it inline, and even **preview-on-hover** while browsing the dropdown (like the iOS/Slack/Discord sound pickers).
-- **Looping sound with optional cap** — Keep the alert sound replaying until you dismiss the overlay, with an optional maximum duration so it self-stops.
+- **Looping sound** — Keep the alert sound replaying until you dismiss the overlay (with a short gap between plays).
 - **Configurable alert delay** — Wait a few seconds after the overlay appears before sound and flash kick in (default 5s), so a glance is enough to dismiss it without the full sensory assault.
 - **Visual flash** — Optionally strobe the overlay between two configurable colors to make it impossible to ignore from across the room. Overlay text automatically picks black or white per the [WCAG](https://www.w3.org/TR/WCAG21/) contrast formula so it stays legible against whatever colors you choose. Off by default; flash speed is bounded to stay clear of photosensitive-seizure territory.
+- **Auto-stop with a shared cap** — A single *maximum duration* time-boxes any continuous alert, so the looping sound **and** the visual flash both self-stop after the cap even if the overlay is never dismissed.
 - **Keyword muting** — Silently drop pings whose sender, channel, or text matches your keyword list (case-insensitive substring). Comma- or newline-separated; wrap a phrase in double quotes to match it verbatim. Useful for muting noisy bots, channels, or topics while away.
 - **System-tray native** — Lives in the notification area with an at-a-glance status icon: green = armed, white = idle/paused, slashed = disabled. Left-click opens settings; right-click for the menu.
 - **Start with Windows** — Optional per-user auto-launch at sign-in (silent, into the tray).
 - **Test overlay** — A one-click button to preview your overlay with current sound/flash settings, bypassing the idle gate.
 - **Fluent design** — Native Windows 11 Fluent 2 look with Mica backdrop, light/dark theme that tracks your OS setting live, and rounded corners.
 - **Zero cloud, zero account** — No Slack token, no API calls, no telemetry. Settings stay on your machine.
-
----
-
-## Screenshots
-<p align="center">
-  <img src="doc/SlackWake.png" width="400">
-  <img src="doc/SlackWake2.png" width="400">
-</p>
 
 ---
 
@@ -171,13 +164,13 @@ A diagnostic log is written alongside it at `%AppData%\SlackWake\debug.log` (app
   "SoundEnabled": true,
   "SoundDelaySeconds": 5,
   "SoundLoop": false,
-  "SoundLoopMaxEnabled": false,
-  "SoundLoopMaxSeconds": 60,
   "SoundFilePath": "",
   "FlashEnabled": false,
   "FlashIntervalMs": 500,
   "FlashColorA": "#000000",
   "FlashColorB": "#FFFFFF",
+  "AlertAutoStopEnabled": false,
+  "AlertMaxDurationSeconds": 60,
   "KeywordFilterEnabled": false,
   "KeywordFilterText": ""
 }
@@ -196,13 +189,13 @@ Hand-editing the file while the app is running is safe — the next save from th
 | `SoundEnabled` | bool | `true` | Play a sound when the overlay appears. |
 | `SoundDelaySeconds` | int | `5` | Delay after the overlay appears before sound **and** flash start. Clamped **0–120s** (0 = immediate). |
 | `SoundLoop` | bool | `false` | Replay the sound until dismissed (with a 0.5s gap between plays). |
-| `SoundLoopMaxEnabled` | bool | `false` | Cap the looping duration. |
-| `SoundLoopMaxSeconds` | int | `60` | Loop cap when enabled. Clamped **5–600s**. |
 | `SoundFilePath` | string | `""` | Path to a `.wav`. Empty = system *Exclamation* sound. UI lists `C:\Windows\Media`, but any readable `.wav` path works. |
 | `FlashEnabled` | bool | `false` | Strobe the overlay between two colors. |
 | `FlashIntervalMs` | int | `500` | Half-cycle (one color→other) in ms. Clamped **100–2000ms** — the floor keeps flashing below seizure-risk frequency. |
 | `FlashColorA` | string | `#000000` | First flash color (hex). |
 | `FlashColorB` | string | `#FFFFFF` | Second flash color (hex). Overlay text contrast is derived automatically. |
+| `AlertAutoStopEnabled` | bool | `false` | Auto-stop continuous alerts after a cap. Shared by the looping sound **and** the visual flash. |
+| `AlertMaxDurationSeconds` | int | `60` | How long continuous alerts run when auto-stop is on. Clamped **5–600s**. |
 | `KeywordFilterEnabled` | bool | `false` | Mute pings matching a keyword. |
 | `KeywordFilterText` | string | `""` | Comma- or newline-separated keywords; case-insensitive substring match against sender + channel + text. Wrap a phrase in `"double quotes"` to match it verbatim (including commas). |
 

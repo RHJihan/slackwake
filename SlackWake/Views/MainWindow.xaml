@@ -274,12 +274,16 @@
                         </StackPanel>
                     </ui:Card>
 
-                    <!-- Sound alert -->
+                    <!-- Alerts: sound and visual flash live in one group (a single Card),
+                         kept visually distinct by full-width dividers. The auto-stop block
+                         at the bottom is shared — its cap governs both the looping sound and
+                         the flash, so it sits below both rather than inside either. -->
                     <ui:TextBlock Text="Alerts" FontTypography="BodyStrong"
                                   Margin="2,20,0,8" Appearance="Secondary"/>
                     <ui:Card Padding="16">
                         <StackPanel>
-                            <!-- Header row with section toggle -->
+
+                            <!-- Sound alert -->
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="Auto"/>
@@ -318,56 +322,26 @@
                                               helpers:SoundHoverPreviewBehavior.DelayMilliseconds="200"/>
                                 </DockPanel>
 
-                                <Border Height="1" Margin="0,16"
-                                        Background="{DynamicResource DividerStrokeColorDefaultBrush}"/>
-
                                 <!-- Loop sound -->
-                                <Grid>
+                                <Grid Margin="0,16,0,0">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*"/>
                                         <ColumnDefinition Width="Auto"/>
                                     </Grid.ColumnDefinitions>
-                                    <ui:TextBlock Grid.Column="0" Text="Loop sound until dismissed"
-                                                  FontTypography="Body" VerticalAlignment="Center"/>
+                                    <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,12,0">
+                                        <ui:TextBlock Text="Loop sound" FontTypography="Body"/>
+                                        <ui:TextBlock Text="Replay the alert continuously instead of playing once."
+                                                      Style="{StaticResource Caption}"/>
+                                    </StackPanel>
                                     <ui:ToggleSwitch Grid.Column="1" VerticalAlignment="Center"
                                                      IsChecked="{Binding SoundLoop}"/>
                                 </Grid>
-
-                                <StackPanel IsEnabled="{Binding SoundLoop}" Margin="0,12,0,0">
-                                    <Grid>
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*"/>
-                                            <ColumnDefinition Width="Auto"/>
-                                        </Grid.ColumnDefinitions>
-                                        <ui:TextBlock Grid.Column="0" Text="Stop looping after a maximum time"
-                                                      FontTypography="Body" VerticalAlignment="Center"
-                                                      TextWrapping="Wrap"/>
-                                        <ui:ToggleSwitch Grid.Column="1" VerticalAlignment="Center"
-                                                         IsChecked="{Binding SoundLoopMaxEnabled}"/>
-                                    </Grid>
-                                    <StackPanel IsEnabled="{Binding SoundLoopMaxEnabled}" Margin="0,10,0,0">
-                                        <ui:TextBlock Text="Maximum loop duration (seconds)"
-                                                      Style="{StaticResource FieldLabel}"/>
-                                        <DockPanel LastChildFill="True">
-                                            <TextBox DockPanel.Dock="Right"
-                                                     Style="{StaticResource NumericBox}"
-                                                     helpers:NumericTextBoxBehavior.Enabled="True"
-                                                     Text="{Binding SoundLoopMaxSeconds, UpdateSourceTrigger=LostFocus}"/>
-                                            <Slider Minimum="5" Maximum="600"
-                                                    SmallChange="5" LargeChange="30"
-                                                    TickFrequency="60" TickPlacement="BottomRight"
-                                                    Value="{Binding SoundLoopMaxSeconds}"
-                                                    VerticalAlignment="Center"/>
-                                        </DockPanel>
-                                    </StackPanel>
-                                </StackPanel>
                             </StackPanel>
-                        </StackPanel>
-                    </ui:Card>
 
-                    <!-- Visual flash -->
-                    <ui:Card Padding="16" Margin="0,12,0,0">
-                        <StackPanel>
+                            <Border Height="1" Margin="0,16"
+                                    Background="{DynamicResource DividerStrokeColorDefaultBrush}"/>
+
+                            <!-- Visual flash -->
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="Auto"/>
@@ -425,6 +399,47 @@
                                             Content="{Binding FlashColorB}"
                                             ToolTip="Click to choose the second flash color"/>
                                 </Grid>
+                            </StackPanel>
+
+                            <Border Height="1" Margin="0,16"
+                                    Background="{DynamicResource DividerStrokeColorDefaultBrush}"/>
+
+                            <!-- Auto-stop (shared by the looping sound and the visual flash).
+                                 Greys out unless at least one continuous alert is active, since
+                                 a single sound play and a dismissed overlay end on their own. -->
+                            <StackPanel IsEnabled="{Binding CanAutoStopAlerts}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <ui:SymbolIcon Grid.Column="0" Symbol="TimerOff24" FontSize="20"
+                                                   Margin="0,0,14,0" VerticalAlignment="Center"/>
+                                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                        <ui:TextBlock Text="Stop alerts automatically" FontTypography="Body"/>
+                                        <ui:TextBlock Text="Stop the looping sound and visual flash after a set time, even if the overlay is still open."
+                                                      Style="{StaticResource Caption}"/>
+                                    </StackPanel>
+                                    <ui:ToggleSwitch Grid.Column="2" VerticalAlignment="Center"
+                                                     IsChecked="{Binding AlertAutoStopEnabled}"/>
+                                </Grid>
+
+                                <StackPanel IsEnabled="{Binding AlertAutoStopEnabled}" Margin="0,16,0,0">
+                                    <ui:TextBlock Text="Maximum duration (seconds)"
+                                                  Style="{StaticResource FieldLabel}"/>
+                                    <DockPanel LastChildFill="True">
+                                        <TextBox DockPanel.Dock="Right"
+                                                 Style="{StaticResource NumericBox}"
+                                                 helpers:NumericTextBoxBehavior.Enabled="True"
+                                                 Text="{Binding AlertMaxDurationSeconds, UpdateSourceTrigger=LostFocus}"/>
+                                        <Slider Minimum="5" Maximum="600"
+                                                SmallChange="5" LargeChange="30"
+                                                TickFrequency="60" TickPlacement="BottomRight"
+                                                Value="{Binding AlertMaxDurationSeconds}"
+                                                VerticalAlignment="Center"/>
+                                    </DockPanel>
+                                </StackPanel>
                             </StackPanel>
                         </StackPanel>
                     </ui:Card>

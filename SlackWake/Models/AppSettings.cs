@@ -31,12 +31,6 @@ public class AppSettings
     /// <summary>When true, keep replaying the alert sound until the user dismisses the overlay.</summary>
     public bool SoundLoop { get; set; } = false;
 
-    /// <summary>When true, the loop self-stops after <see cref="SoundLoopMaxSeconds"/>.</summary>
-    public bool SoundLoopMaxEnabled { get; set; } = false;
-
-    /// <summary>Cap on total looping duration when <see cref="SoundLoopMaxEnabled"/> is on.</summary>
-    public int SoundLoopMaxSeconds { get; set; } = 60;
-
     /// <summary>
     /// Full path to the WAV file to play. Empty/null means use the built-in
     /// <see cref="System.Media.SystemSounds.Exclamation"/> sound. The settings UI
@@ -60,6 +54,17 @@ public class AppSettings
 
     /// <summary>Second color in the flash pair. Hex string (e.g. "#FFFFFF").</summary>
     public string FlashColorB { get; set; } = "#FFFFFF";
+
+    /// <summary>When true, the continuous alerts self-stop after
+    /// <see cref="AlertMaxDurationSeconds"/>, even if the overlay is never dismissed.
+    /// Shared by the looping sound and the visual flash so a single cap governs how
+    /// long an unattended alert keeps running.</summary>
+    public bool AlertAutoStopEnabled { get; set; } = false;
+
+    /// <summary>Cap, in seconds, on how long continuous alerts run when
+    /// <see cref="AlertAutoStopEnabled"/> is on. Applies to both the looping sound
+    /// and the visual flash.</summary>
+    public int AlertMaxDurationSeconds { get; set; } = 60;
 
     /// <summary>When true, Slack pings whose content matches any entry in
     /// <see cref="KeywordFilterText"/> are silently dropped — no overlay, no sound,

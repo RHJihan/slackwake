@@ -42,12 +42,11 @@ public partial class OverlayWindow : Window
     };
 
     private DispatcherTimer? _alertDelayTimer;
+    private DispatcherTimer? _flashStopTimer;
     private LoopingSoundPlayer? _loopingPlayer;
 
     private bool _soundEnabled;
     private bool _soundLoop;
-    private bool _soundLoopMaxEnabled;
-    private int _soundLoopMaxSeconds;
     private string _soundFilePath = string.Empty;
 
     private bool _flashEnabled;
@@ -58,13 +57,19 @@ public partial class OverlayWindow : Window
 
     private int _alertDelaySeconds;
 
+    // Shared auto-stop cap: when enabled, both the looping sound and the visual flash
+    // stop after _alertMaxDurationSeconds even if the overlay is never dismissed.
+    private bool _alertAutoStopEnabled;
+    private int _alertMaxDurationSeconds;
+
     public OverlayWindow(string? sender, string? channel, string? text)
         : this(sender, channel, text,
                soundEnabled: false, alertDelaySeconds: 0,
-               soundLoop: false, soundLoopMaxEnabled: false, soundLoopMaxSeconds: 0,
+               soundLoop: false,
                soundFilePath: string.Empty,
                flashEnabled: false, flashIntervalMs: 0,
-               flashColorA: Colors.Black, flashColorB: Colors.White)
+               flashColorA: Colors.Black, flashColorB: Colors.White,
+               alertAutoStopEnabled: false, alertMaxDurationSeconds: 0)
     {
     }
 
@@ -75,13 +80,13 @@ public partial class OverlayWindow : Window
         bool soundEnabled,
         int alertDelaySeconds,
         bool soundLoop,
-        bool soundLoopMaxEnabled,
-        int soundLoopMaxSeconds,
         string soundFilePath,
         bool flashEnabled,
         int flashIntervalMs,
         Color flashColorA,
-        Color flashColorB)
+        Color flashColorB,
+        bool alertAutoStopEnabled,
+        int alertMaxDurationSeconds)
     {
         InitializeComponent();
 
@@ -92,9 +97,10 @@ public partial class OverlayWindow : Window
         _soundEnabled = soundEnabled;
         _alertDelaySeconds = Math.Clamp(alertDelaySeconds, 0, 120);
         _soundLoop = soundLoop;
-        _soundLoopMaxEnabled = soundLoopMaxEnabled;
-        _soundLoopMaxSeconds = Math.Max(1, soundLoopMaxSeconds);
         _soundFilePath = soundFilePath ?? string.Empty;
+
+        _alertAutoStopEnabled = alertAutoStopEnabled;
+        _alertMaxDurationSeconds = Math.Max(1, alertMaxDurationSeconds);
 
         _flashEnabled = flashEnabled;
         _flashIntervalMs = Math.Clamp(flashIntervalMs, 100, 2000);
@@ -188,8 +194,8 @@ public partial class OverlayWindow : Window
 
         if (_soundLoop)
         {
-            TimeSpan? max = _soundLoopMaxEnabled
-                ? TimeSpan.FromSeconds(_soundLoopMaxSeconds)
+            TimeSpan? max = _alertAutoStopEnabled
+                ? TimeSpan.FromSeconds(_alertMaxDurationSeconds)
                 : null;
             _loopingPlayer = new LoopingSoundPlayer();
             _loopingPlayer.Start(_soundFilePath, loop: true, maxDuration: max);
@@ -226,6 +232,19 @@ public partial class OverlayWindow : Window
         AnimateBrush("OverlayHintBrush", stateA.Hint, stateB.Hint, halfCycle);
 
         _flashRunning = true;
+
+        // Honor the shared auto-stop cap. The looping sound enforces its own cap inside
+        // LoopingSoundPlayer; the flash animation repeats forever, so we time-box it here
+        // with a one-shot timer that tears the strobe down after the same duration.
+        if (_alertAutoStopEnabled)
+        {
+            _flashStopTimer = new DispatcherTimer
+            {
+                Interval = TimeSpan.FromSeconds(_alertMaxDurationSeconds)
+            };
+            _flashStopTimer.Tick += (_, _) => StopFlash();
+            _flashStopTimer.Start();
+        }
     }
 
     private static Palette BuildPalette(Color baseColor)
@@ -264,6 +283,8 @@ public partial class OverlayWindow : Window
 
     private void StopFlash()
     {
+        _flashStopTimer?.Stop();
+        _flashStopTimer = null;
         if (!_flashRunning) return;
         foreach (var key in FlashBrushKeys)
         {

@@ -161,13 +161,14 @@ public partial class App : System.Windows.Application
         var soundEnabled = _vm?.Settings.SoundEnabled ?? false;
         var alertDelay = _vm?.Settings.SoundDelaySeconds ?? 0;
         var soundLoop = _vm?.Settings.SoundLoop ?? false;
-        var soundLoopMaxEnabled = _vm?.Settings.SoundLoopMaxEnabled ?? false;
-        var soundLoopMaxSeconds = _vm?.Settings.SoundLoopMaxSeconds ?? 60;
         var soundPath = _vm?.Settings.SoundFilePath ?? string.Empty;
         var flashEnabled = _vm?.Settings.FlashEnabled ?? false;
         var flashIntervalMs = _vm?.Settings.FlashIntervalMs ?? 500;
         var flashColorA = ColorUtil.Parse(_vm?.Settings.FlashColorA ?? "#000000");
         var flashColorB = ColorUtil.Parse(_vm?.Settings.FlashColorB ?? "#FFFFFF");
+        // Shared auto-stop cap — governs both the looping sound and the visual flash.
+        var alertAutoStopEnabled = _vm?.Settings.AlertAutoStopEnabled ?? false;
+        var alertMaxDurationSeconds = _vm?.Settings.AlertMaxDurationSeconds ?? 60;
 
         var first = true;
         foreach (var screen in Forms.Screen.AllScreens)
@@ -176,10 +177,10 @@ public partial class App : System.Windows.Application
             var w = new OverlayWindow(
                 evt.Sender, evt.Channel, evt.Text,
                 soundEnabled, alertDelay,
-                soundLoop, soundLoopMaxEnabled, soundLoopMaxSeconds,
-                soundPath,
+                soundLoop, soundPath,
                 flashEnabled, flashIntervalMs,
-                flashColorA, flashColorB)
+                flashColorA, flashColorB,
+                alertAutoStopEnabled, alertMaxDurationSeconds)
             {
                 WindowStartupLocation = WindowStartupLocation.Manual
             };

@@ -162,6 +162,7 @@ public class MainViewModel : ObservableObject
             if (_settings.SoundEnabled == value) return;
             _settings.SoundEnabled = value;
             Raise();
+            Raise(nameof(CanAutoStopAlerts));
             Save();
         }
     }
@@ -191,41 +192,48 @@ public class MainViewModel : ObservableObject
             if (_settings.SoundLoop == value) return;
             _settings.SoundLoop = value;
             Raise();
+            Raise(nameof(CanAutoStopAlerts));
             Save();
         }
     }
 
-    public bool SoundLoopMaxEnabled
+    public bool AlertAutoStopEnabled
     {
-        get => _settings.SoundLoopMaxEnabled;
+        get => _settings.AlertAutoStopEnabled;
         set
         {
-            if (_settings.SoundLoopMaxEnabled == value) return;
-            _settings.SoundLoopMaxEnabled = value;
+            if (_settings.AlertAutoStopEnabled == value) return;
+            _settings.AlertAutoStopEnabled = value;
             Raise();
             Save();
         }
     }
 
-    public int SoundLoopMaxSeconds
+    public int AlertMaxDurationSeconds
     {
-        get => _settings.SoundLoopMaxSeconds;
+        get => _settings.AlertMaxDurationSeconds;
         set
         {
             // Lower bound = 5s so the cap is meaningfully different from "just play once";
             // upper bound = 600s (10 min) since past that point you're really asking for
-            // the loop to run until dismissed anyway.
+            // the alert to run until dismissed anyway.
             var clamped = Math.Clamp(value, 5, 600);
-            if (_settings.SoundLoopMaxSeconds == clamped)
+            if (_settings.AlertMaxDurationSeconds == clamped)
             {
                 if (value != clamped) Raise();
                 return;
             }
-            _settings.SoundLoopMaxSeconds = clamped;
+            _settings.AlertMaxDurationSeconds = clamped;
             Raise();
             Save();
         }
     }
+
+    /// <summary>Whether the shared auto-stop cap can actually do anything — true when at
+    /// least one <em>continuous</em> alert is active (the sound is set to loop, or the
+    /// visual flash is on). When false the auto-stop control greys out, since a single
+    /// sound play and a dismissed overlay already end on their own.</summary>
+    public bool CanAutoStopAlerts => (SoundEnabled && SoundLoop) || FlashEnabled;
 
     public bool FlashEnabled
     {
@@ -235,6 +243,7 @@ public class MainViewModel : ObservableObject
             if (_settings.FlashEnabled == value) return;
             _settings.FlashEnabled = value;
             Raise();
+            Raise(nameof(CanAutoStopAlerts));
             Save();
         }
     }
