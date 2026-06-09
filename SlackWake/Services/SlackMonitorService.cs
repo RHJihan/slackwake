@@ -4,6 +4,7 @@
 using System;
 using System.Collections.Generic;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Timers;
 using SlackWake.Helpers;
@@ -40,6 +41,12 @@ public class SlackMonitorService
     // both driven from the UI thread, and the async continuation resumes there
     // too, so plain int access is safe — no interlocking needed.
     private int _generation;
+
+    // Reentrancy gate for PollAsync. The AutoReset timer fires Elapsed on a
+    // thread-pool thread every 1.5s whether or not the previous poll has finished;
+    // if a GetNotificationsAsync call runs long, two polls would otherwise mutate
+    // the (non-thread-safe) _seen HashSet concurrently. 0 = idle, 1 = poll in flight.
+    private int _pollGate;
 
     public event Action<SlackEvent>? NotificationReceived;
     public event Action<string>? StatusChanged;
@@ -109,13 +116,20 @@ public class SlackMonitorService
         }
         _listener = null;
         _running = false;
-        _seen.Clear();
+        // Deliberately NOT clearing _seen here: Stop() runs on the UI thread while a
+        // poll may still be mutating _seen on a thread-pool thread, and clearing it
+        // here would race that poll. Start() already clears _seen before its first
+        // poll, so the next arm gets a clean baseline either way.
     }
 
     private async Task PollAsync()
     {
         var listener = _listener;
         if (listener == null) return;
+
+        // Skip this tick if a previous poll is still running — overlapping polls
+        // would mutate _seen on two thread-pool threads at once.
+        if (Interlocked.CompareExchange(ref _pollGate, 1, 0) != 0) return;
 
         try
         {
@@ -150,6 +164,10 @@ public class SlackMonitorService
         catch (Exception ex)
         {
             Log.Write("Poll error: " + ex.Message);
+        }
+        finally
+        {
+            Interlocked.Exchange(ref _pollGate, 0);
         }
     }
 
