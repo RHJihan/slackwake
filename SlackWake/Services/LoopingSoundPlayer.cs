@@ -34,7 +34,9 @@ public sealed class LoopingSoundPlayer
     /// <summary>
     /// Begin playback. When <paramref name="loop"/> is true, replay with a
     /// <see cref="GapMilliseconds"/> gap until <see cref="Stop"/> is called or
-    /// <paramref name="maxDuration"/> elapses (if provided).
+    /// <paramref name="maxDuration"/> elapses (if provided). When <paramref name="loop"/>
+    /// is false the clip plays once, but <paramref name="maxDuration"/> is still honored
+    /// so a clip longer than the cap is cut off at it.
     /// </summary>
     public void Start(string filePath, bool loop, TimeSpan? maxDuration)
     {
@@ -47,7 +49,7 @@ public sealed class LoopingSoundPlayer
         _filePath = resolved;
         _loop = loop;
 
-        if (loop && maxDuration is { } cap && cap > TimeSpan.Zero)
+        if (maxDuration is { } cap && cap > TimeSpan.Zero)
         {
             _maxTimer = new DispatcherTimer { Interval = cap };
             _maxTimer.Tick += (_, _) => Stop();

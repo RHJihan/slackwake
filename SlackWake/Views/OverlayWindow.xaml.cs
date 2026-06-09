@@ -200,17 +200,20 @@ public partial class OverlayWindow : Window
     {
         if (!_soundEnabled) return;
 
-        if (_soundLoop)
+        var capSound = _alertAutoStopEnabled && _alertAutoStopIncludesSound;
+
+        if (_soundLoop || capSound)
         {
-            TimeSpan? max = _alertAutoStopEnabled && _alertAutoStopIncludesSound
-                ? TimeSpan.FromSeconds(_alertMaxDurationSeconds)
-                : null;
+            // Either we're looping, or the cap needs to be able to cut off a single play
+            // that runs longer than _alertMaxDurationSeconds. Both require a stoppable
+            // player, so route through LoopingSoundPlayer (loop:false still honors the cap).
+            TimeSpan? max = capSound ? TimeSpan.FromSeconds(_alertMaxDurationSeconds) : null;
             _loopingPlayer = new LoopingSoundPlayer();
-            _loopingPlayer.Start(_soundFilePath, loop: true, maxDuration: max);
+            _loopingPlayer.Start(_soundFilePath, loop: _soundLoop, maxDuration: max);
         }
         else
         {
-            // Single fire-and-forget — no need to track end-of-stream.
+            // Single fire-and-forget — no cap to enforce, so no need to track end-of-stream.
             SoundLibrary.PlayOnce(_soundFilePath);
         }
     }

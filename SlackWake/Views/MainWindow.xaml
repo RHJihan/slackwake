@@ -404,10 +404,10 @@
                             <Border Height="1" Margin="0,16"
                                     Background="{DynamicResource DividerStrokeColorDefaultBrush}"/>
 
-                            <!-- Auto-stop. Greys out unless at least one continuous alert is
-                                 active, since a single sound play and a dismissed overlay end
-                                 on their own. The sound and the visual flash opt in
-                                 independently via the two toggles below. -->
+                            <!-- Auto-stop. Greys out unless at least one alert channel is
+                                 active (sound enabled or visual flash on); a dismissed overlay
+                                 with neither has nothing to cap. The sound and the visual flash
+                                 opt in independently via the two toggles below. -->
                             <StackPanel IsEnabled="{Binding CanAutoStopAlerts}">
                                 <Grid>
                                     <Grid.ColumnDefinitions>
@@ -432,17 +432,19 @@
                                          automatically [after this long]." Check boxes (not toggle
                                          switches) because this is a multi-select subset of one
                                          setting, not two standalone features. Each greys out when its
-                                         channel isn't a continuous alert — nothing to time-box there. -->
+                                         channel is off entirely — nothing to time-box there. The sound
+                                         box stays available even for a single (non-looping) play, since
+                                         the cap can cut off a clip that runs longer than the limit. -->
                                     <ui:TextBlock Text="Alerts to stop" Style="{StaticResource FieldLabel}"
                                                   Margin="0,0,0,2"/>
                                     <ui:TextBlock Text="Unchecked alerts keep running until you dismiss the overlay."
                                                   Style="{StaticResource Caption}" Margin="0,0,0,8"/>
                                     <StackPanel Orientation="Horizontal">
-                                        <CheckBox Content="Sound alert"
+                                        <CheckBox Content="Stop Sound alert"
                                                   IsEnabled="{Binding CanAutoStopSound}"
                                                   IsChecked="{Binding AlertAutoStopIncludesSound}"
                                                   Margin="0,0,28,0"/>
-                                        <CheckBox Content="Visual flash"
+                                        <CheckBox Content="Stop Visual flash"
                                                   IsEnabled="{Binding CanAutoStopVisual}"
                                                   IsChecked="{Binding AlertAutoStopIncludesVisual}"/>
                                     </StackPanel>
