@@ -201,21 +201,14 @@ public partial class OverlayWindow : Window
         if (!_soundEnabled) return;
 
         var capSound = _alertAutoStopEnabled && _alertAutoStopIncludesSound;
+        TimeSpan? max = capSound ? TimeSpan.FromSeconds(_alertMaxDurationSeconds) : null;
 
-        if (_soundLoop || capSound)
-        {
-            // Either we're looping, or the cap needs to be able to cut off a single play
-            // that runs longer than _alertMaxDurationSeconds. Both require a stoppable
-            // player, so route through LoopingSoundPlayer (loop:false still honors the cap).
-            TimeSpan? max = capSound ? TimeSpan.FromSeconds(_alertMaxDurationSeconds) : null;
-            _loopingPlayer = new LoopingSoundPlayer();
-            _loopingPlayer.Start(_soundFilePath, loop: _soundLoop, maxDuration: max);
-        }
-        else
-        {
-            // Single fire-and-forget — no cap to enforce, so no need to track end-of-stream.
-            SoundLibrary.PlayOnce(_soundFilePath);
-        }
+        // Always route through LoopingSoundPlayer so the sound is always stoppable.
+        // Dismissing the overlay must cut audio immediately; a fire-and-forget
+        // SoundPlayer has no handle to stop and would run to the end of the clip.
+        // loop:false plays once, and maxDuration stays null unless the cap applies.
+        _loopingPlayer = new LoopingSoundPlayer();
+        _loopingPlayer.Start(_soundFilePath, loop: _soundLoop, maxDuration: max);
     }
 
     private void StopSound()
