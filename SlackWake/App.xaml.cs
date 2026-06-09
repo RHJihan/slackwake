@@ -30,6 +30,15 @@ public partial class App : System.Windows.Application
     private MainWindow? _settingsWindow;
     private MainViewModel? _vm;
 
+    // Checkable tray-menu items mirroring the matching settings toggles. Kept as
+    // fields so the menu's Opening handler can refresh their checked state from the
+    // view-model — the user may have changed any of these in the settings window
+    // since the menu was last shown.
+    private Forms.ToolStripMenuItem? _miEnableMonitoring;
+    private Forms.ToolStripMenuItem? _miSoundAlert;
+    private Forms.ToolStripMenuItem? _miVisualAlert;
+    private Forms.ToolStripMenuItem? _miAutoStop;
+
     // Guard: prevents a flood of Slack events from spawning multiple overlay sets.
     private bool _overlayOpen;
     private readonly List<OverlayWindow> _activeOverlays = new();
@@ -86,11 +95,7 @@ public partial class App : System.Windows.Application
             Text = "SlackWake",
             Visible = true
         };
-        var menu = new Forms.ContextMenuStrip();
-        menu.Items.Add("Open settings", null, (_, _) => ShowSettings());
-        menu.Items.Add("-");
-        menu.Items.Add("Exit", null, (_, _) => Shutdown());
-        _tray.ContextMenuStrip = menu;
+        _tray.ContextMenuStrip = BuildContextMenu();
         // Left-click opens settings; right-click is left to the context menu.
         _tray.MouseClick += (_, args) =>
         {
@@ -102,6 +107,84 @@ public partial class App : System.Windows.Application
             _vm.PropertyChanged += OnViewModelPropertyChanged;
         }
         SyncTrayState();
+    }
+
+    /// <summary>
+    /// Builds the tray right-click menu. The top group mirrors the most-used settings
+    /// toggles as checkable items so the user can flip them without opening the window;
+    /// "Enable monitoring" is the master switch and is rendered bold (the menu's default
+    /// action), matching the Windows convention of emphasizing the primary item.
+    /// </summary>
+    private Forms.ContextMenuStrip BuildContextMenu()
+    {
+        var menu = new Forms.ContextMenuStrip();
+
+        // Master switch — bold to read as the primary/default action.
+        _miEnableMonitoring = new Forms.ToolStripMenuItem("Enable monitoring", null, (_, _) => ToggleEnabled())
+        {
+            CheckOnClick = true,
+            Font = new System.Drawing.Font(menu.Font, System.Drawing.FontStyle.Bold),
+        };
+
+        _miSoundAlert = new Forms.ToolStripMenuItem("Sound alert", null, (_, _) => ToggleSound())
+        {
+            CheckOnClick = true,
+        };
+        _miVisualAlert = new Forms.ToolStripMenuItem("Visual alert", null, (_, _) => ToggleVisual())
+        {
+            CheckOnClick = true,
+        };
+        _miAutoStop = new Forms.ToolStripMenuItem("Stop alert automatically", null, (_, _) => ToggleAutoStop())
+        {
+            CheckOnClick = true,
+        };
+
+        menu.Items.Add(_miEnableMonitoring);
+        menu.Items.Add(new Forms.ToolStripSeparator());
+        menu.Items.Add(_miSoundAlert);
+        menu.Items.Add(_miVisualAlert);
+        menu.Items.Add(_miAutoStop);
+        menu.Items.Add(new Forms.ToolStripSeparator());
+        menu.Items.Add("Open settings", null, (_, _) => ShowSettings());
+        menu.Items.Add(new Forms.ToolStripSeparator());
+        menu.Items.Add("Exit", null, (_, _) => Shutdown());
+
+        // The settings window can change any of these while the menu is closed, so
+        // refresh the checkmarks each time the menu is about to show rather than only
+        // when we build it.
+        menu.Opening += (_, _) => RefreshContextMenu();
+        return menu;
+    }
+
+    /// <summary>Pulls the current toggle state from the view-model onto the checkable
+    /// menu items. Called right before the menu opens so it never shows stale checks.</summary>
+    private void RefreshContextMenu()
+    {
+        if (_vm == null) return;
+        if (_miEnableMonitoring != null) _miEnableMonitoring.Checked = _vm.Enabled;
+        if (_miSoundAlert != null) _miSoundAlert.Checked = _vm.SoundEnabled;
+        if (_miVisualAlert != null) _miVisualAlert.Checked = _vm.FlashEnabled;
+        if (_miAutoStop != null) _miAutoStop.Checked = _vm.AlertAutoStopEnabled;
+    }
+
+    private void ToggleEnabled()
+    {
+        if (_vm != null) _vm.Enabled = !_vm.Enabled;
+    }
+
+    private void ToggleSound()
+    {
+        if (_vm != null) _vm.SoundEnabled = !_vm.SoundEnabled;
+    }
+
+    private void ToggleVisual()
+    {
+        if (_vm != null) _vm.FlashEnabled = !_vm.FlashEnabled;
+    }
+
+    private void ToggleAutoStop()
+    {
+        if (_vm != null) _vm.AlertAutoStopEnabled = !_vm.AlertAutoStopEnabled;
     }
 
     private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)

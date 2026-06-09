@@ -217,6 +217,7 @@ Hand-editing the file while the app is running is safe — the next save from th
 ## Usage
 
 - **Open settings** — Left-click the tray icon, or right-click → *Open settings*. Closing the window hides it back to the tray; it doesn't exit the app.
+- **Quick toggles from the tray** — Right-click the tray icon for checkable shortcuts to the most-used settings, no window needed: **Enable monitoring** (the bold master switch), **Sound alert**, **Visual alert**, and **Stop alert automatically**. Each check mirrors — and stays in sync with — the matching toggle in the settings window.
 - **Exit** — Right-click the tray icon → *Exit*.
 - **Read the status at a glance** — The tray icon and the status pill agree:
   - 🟢 **Green bell** = *Active (armed)* — you're idle and the next Slack ping will fire an overlay.
