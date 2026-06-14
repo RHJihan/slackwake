@@ -41,6 +41,27 @@ public partial class OverlayWindow : Window
         "OverlayHintBrush",
     };
 
+    // Sinusoidal ease-in-out shared by every flash animation. A plain linear
+    // ColorAnimation with AutoReverse produces a triangle wave: the color slams
+    // into each extreme and instantly reverses, which reads as a harsh, jittery
+    // strobe. Easing the motion so it decelerates into each color and accelerates
+    // out turns the strobe into a smooth "breathing" pulse — the standard technique
+    // for pulse/glow UI. Frozen once so all four brush animations reuse one instance.
+    private static readonly SineEase FlashEase = CreateFlashEase();
+
+    // Pin the color interpolation to 60 fps. Left unset, WPF can throttle long
+    // color animations to a lower desired frame rate, producing visible stepping
+    // across subtle transitions; 60 fps keeps the pulse perceptually continuous
+    // without the cost of the uncapped composition rate.
+    private const int FlashFrameRate = 60;
+
+    private static SineEase CreateFlashEase()
+    {
+        var ease = new SineEase { EasingMode = EasingMode.EaseInOut };
+        ease.Freeze();
+        return ease;
+    }
+
     private DispatcherTimer? _alertDelayTimer;
     private DispatcherTimer? _flashStopTimer;
     private LoopingSoundPlayer? _loopingPlayer;
@@ -281,7 +302,9 @@ public partial class OverlayWindow : Window
             Duration = halfCycle,
             AutoReverse = true,
             RepeatBehavior = RepeatBehavior.Forever,
+            EasingFunction = FlashEase,
         };
+        Timeline.SetDesiredFrameRate(animation, FlashFrameRate);
         brush.BeginAnimation(SolidColorBrush.ColorProperty, animation);
     }
 
