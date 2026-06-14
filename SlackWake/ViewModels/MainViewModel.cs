@@ -11,7 +11,7 @@ using SlackWake.Helpers;
 using SlackWake.Models;
 using SlackWake.Services;
 using Brush = System.Windows.Media.Brush;
-using Forms = System.Windows.Forms;
+using Color = System.Windows.Media.Color;
 
 namespace SlackWake.ViewModels;
 
@@ -31,6 +31,11 @@ public class MainViewModel : ObservableObject
     private readonly SlackMonitorService _slack;
     private readonly Action<SlackEvent> _showOverlay;
 
+    // Opens the Fluent color picker for an initial color and returns the chosen
+    // color, or null if cancelled. Injected so the view-model stays free of any
+    // View/Window reference — the composition root (App) supplies the real dialog.
+    private readonly Func<Color, Color?> _pickColor;
+
     // Raw OS fact: has the user been away from keyboard/mouse longer than the
     // configured timeout? SlackWake's own "active vs idle" state is derived from
     // this (see IsActive) — when the user is idle, SlackWake is active (armed).
@@ -43,13 +48,15 @@ public class MainViewModel : ObservableObject
         SettingsService settingsService,
         IdleMonitorService idle,
         SlackMonitorService slack,
-        Action<SlackEvent> showOverlay)
+        Action<SlackEvent> showOverlay,
+        Func<Color, Color?> pickColor)
     {
         _settings = settings;
         _settingsService = settingsService;
         _idle = idle;
         _slack = slack;
         _showOverlay = showOverlay;
+        _pickColor = pickColor;
 
         _idle.IdleTimeChanged += OnIdleTick;
         _slack.NotificationReceived += OnSlackNotification;
@@ -439,20 +446,12 @@ public class MainViewModel : ObservableObject
     private void PickFlashColor(bool isA)
     {
         var currentHex = isA ? _settings.FlashColorA : _settings.FlashColorB;
-        var currentWpf = ColorUtil.Parse(currentHex);
+        var picked = _pickColor(ColorUtil.Parse(currentHex));
+        if (picked is not { } color) return;
 
-        using var dialog = new Forms.ColorDialog
-        {
-            FullOpen = true,
-            AnyColor = true,
-            Color = System.Drawing.Color.FromArgb(currentWpf.R, currentWpf.G, currentWpf.B),
-        };
-
-        if (dialog.ShowDialog() != Forms.DialogResult.OK) return;
-
-        var picked = $"#{dialog.Color.R:X2}{dialog.Color.G:X2}{dialog.Color.B:X2}";
-        if (isA) FlashColorA = picked;
-        else FlashColorB = picked;
+        var hex = ColorUtil.ToHex(color);
+        if (isA) FlashColorA = hex;
+        else FlashColorB = hex;
     }
 
     public IReadOnlyList<SoundLibrary.SoundOption> AvailableSounds { get; }

@@ -13,6 +13,7 @@ using SlackWake.ViewModels;
 using SlackWake.Views;
 using Wpf.Ui.Appearance;
 using Forms = System.Windows.Forms;
+using MediaColor = System.Windows.Media.Color;
 
 namespace SlackWake;
 
@@ -51,7 +52,7 @@ public partial class App : System.Windows.Application
         var idle = new IdleMonitorService();
         var slack = new SlackMonitorService();
 
-        _vm = new MainViewModel(settings, settingsService, idle, slack, ShowOverlay);
+        _vm = new MainViewModel(settings, settingsService, idle, slack, ShowOverlay, PickColor);
 
         // Match the Fluent palette to the user's current Windows light/dark theme and
         // accent before any window is shown. Purely presentational — does not touch the
@@ -225,6 +226,20 @@ public partial class App : System.Windows.Application
         if (_settingsWindow.WindowState == WindowState.Minimized)
             _settingsWindow.WindowState = WindowState.Normal;
         _settingsWindow.Activate();
+    }
+
+    /// <summary>
+    /// Show the Fluent color picker modally over the settings window, seeded with
+    /// <paramref name="initial"/>. Returns the chosen color, or null if cancelled.
+    /// Wired into the view-model so it owns no View reference of its own.
+    /// </summary>
+    private MediaColor? PickColor(MediaColor initial)
+    {
+        var picker = new ColorPickerWindow(initial)
+        {
+            Owner = _settingsWindow,
+        };
+        return picker.ShowDialog() == true ? picker.SelectedColor : null;
     }
 
     /// <summary>
