@@ -357,6 +357,8 @@ public class MainViewModel : ObservableObject
         }
     }
 
+    // ---- Mute by keyword (block-list) ----
+
     public bool KeywordFilterEnabled
     {
         get => _settings.KeywordFilterEnabled;
@@ -365,6 +367,8 @@ public class MainViewModel : ObservableObject
             if (_settings.KeywordFilterEnabled == value) return;
             _settings.KeywordFilterEnabled = value;
             Raise();
+            // Toggling either filter changes whether the "both on" interaction note shows.
+            Raise(nameof(ShowFilterInteractionNote));
             Save();
         }
     }
@@ -381,6 +385,46 @@ public class MainViewModel : ObservableObject
             Save();
         }
     }
+
+    // ---- Alert only by keyword (allow-list) ----
+
+    public bool KeywordAllowEnabled
+    {
+        get => _settings.KeywordAllowEnabled;
+        set
+        {
+            if (_settings.KeywordAllowEnabled == value) return;
+            _settings.KeywordAllowEnabled = value;
+            Raise();
+            // The status line calls out an active allow-list; the note tracks "both on".
+            RecomputeStatus();
+            Raise(nameof(ShowFilterInteractionNote));
+            Save();
+        }
+    }
+
+    public string KeywordAllowText
+    {
+        get => _settings.KeywordAllowText;
+        set
+        {
+            var newValue = value ?? string.Empty;
+            if (string.Equals(_settings.KeywordAllowText, newValue, StringComparison.Ordinal)) return;
+            _settings.KeywordAllowText = newValue;
+            Raise();
+            // List going empty/non-empty flips whether the allow-list actually restricts
+            // anything, which the status line reflects.
+            RecomputeStatus();
+            Save();
+        }
+    }
+
+    /// <summary>True when both keyword filters are switched on, so the UI can surface the
+    /// one note that explains how they combine (a ping must be allowed AND not muted).
+    /// Keyed on the toggles alone — it appears as soon as both are on, before the user has
+    /// even typed keywords, which is exactly when the interaction is least obvious.</summary>
+    public bool ShowFilterInteractionNote =>
+        _settings.KeywordFilterEnabled && _settings.KeywordAllowEnabled;
 
     public Brush FlashColorABrush => new SolidColorBrush(ColorUtil.Parse(_settings.FlashColorA));
     public Brush FlashColorBBrush => new SolidColorBrush(ColorUtil.Parse(_settings.FlashColorB));
@@ -567,12 +611,13 @@ public class MainViewModel : ObservableObject
                 return;
             }
 
-            // Mute pings whose content matches a user keyword (noisy bots, channels,
-            // topics). Checked after the idle/enabled gate so it only costs anything
-            // on pings we'd otherwise fire on.
-            if (IsMutedByKeyword(evt, out var matched))
+            // Apply the keyword filters. Allow-list first (drop anything that doesn't
+            // match), then block-list (drop matches) — so a ping wakes the user only if it
+            // is allowed AND not muted, and muting wins on overlap. Checked after the
+            // idle/enabled gate so it only costs anything on pings we'd otherwise fire on.
+            if (ShouldSuppressByKeyword(evt, out var reason))
             {
-                Log.Write($"  -> suppressed (keyword filter matched '{matched}')");
+                Log.Write($"  -> suppressed ({reason})");
                 return;
             }
 
@@ -582,22 +627,57 @@ public class MainViewModel : ObservableObject
     }
 
     /// <summary>
-    /// True when keyword filtering is on and the event's sender, channel, or text
-    /// contains any configured keyword (case-insensitive substring match). The
-    /// matching keyword is returned via <paramref name="matched"/> for logging.
+    /// Decides whether the keyword filters should drop this event, applying the two
+    /// independent filters in order:
+    /// <list type="number">
+    /// <item><b>Allow-list</b> (<see cref="KeywordAllowEnabled"/>): when active, a ping that
+    /// matches NONE of its keywords is suppressed — only matches break through.</item>
+    /// <item><b>Block-list</b> (<see cref="KeywordFilterEnabled"/>): a ping that matches any
+    /// of its keywords is suppressed — so muting wins even over an allow-list match.</item>
+    /// </list>
+    /// Each filter is inert when off or when its own keyword list is blank; in particular an
+    /// empty allow-list is treated as "no restriction" rather than "mute everything", so
+    /// enabling it before typing a keyword can never silently swallow every ping. The
+    /// human-readable reason is returned via <paramref name="reason"/> for logging.
     /// </summary>
-    private bool IsMutedByKeyword(SlackEvent evt, out string matched)
+    private bool ShouldSuppressByKeyword(SlackEvent evt, out string reason)
     {
-        matched = string.Empty;
-        if (!_settings.KeywordFilterEnabled) return false;
+        reason = string.Empty;
 
-        var keywords = _settings.KeywordFilterText;
-        if (string.IsNullOrWhiteSpace(keywords)) return false;
+        // Allow-list: when on with keywords, anything that doesn't match is dropped.
+        if (_settings.KeywordAllowEnabled
+            && !string.IsNullOrWhiteSpace(_settings.KeywordAllowText)
+            && MatchKeyword(evt, _settings.KeywordAllowText) == null)
+        {
+            reason = "allow-list: no keyword matched";
+            return true;
+        }
 
-        // Slack carries the message's formatting markers inline in the toast text:
-        // bold is *word*, italic _word_, strikethrough ~word~, code `word`. A raw
-        // substring search would miss "deploy failed" inside "*deploy* failed", so
-        // strip those markers from the haystack (and the keyword) before matching.
+        // Block-list: a match is dropped — applied after the allow-list, so muting wins.
+        if (_settings.KeywordFilterEnabled
+            && !string.IsNullOrWhiteSpace(_settings.KeywordFilterText))
+        {
+            var matched = MatchKeyword(evt, _settings.KeywordFilterText);
+            if (matched != null)
+            {
+                reason = $"mute keyword matched '{matched}'";
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Returns the first configured keyword found in the event's sender, channel, or text
+    /// (case-insensitive substring), or null if none match. Slack carries the message's
+    /// formatting markers inline in the toast text — bold <c>*word*</c>, italic
+    /// <c>_word_</c>, strikethrough <c>~word~</c>, code <c>`word`</c> — so a raw substring
+    /// search would miss "deploy failed" inside "*deploy* failed". Those markers are
+    /// stripped from both the haystack and the keyword before matching.
+    /// </summary>
+    private static string? MatchKeyword(SlackEvent evt, string keywords)
+    {
         var haystack = StripFormatting(string.Join(' ',
             evt.Sender ?? string.Empty,
             evt.Channel ?? string.Empty,
@@ -606,12 +686,9 @@ public class MainViewModel : ObservableObject
         foreach (var keyword in ParseKeywords(keywords))
         {
             if (haystack.IndexOf(StripFormatting(keyword), StringComparison.OrdinalIgnoreCase) >= 0)
-            {
-                matched = keyword;
-                return true;
-            }
+                return keyword;
         }
-        return false;
+        return null;
     }
 
     /// <summary>
@@ -689,10 +766,23 @@ public class MainViewModel : ObservableObject
         // named from SlackWake's own perspective. SlackWake is "active" when it is
         // armed to fire (the user is away) and "idle" when it is standing down
         // (the user is at the keyboard, so Slack's own notifications suffice).
-        return _userIdle
-            ? "Active: overlay armed for the next Slack ping"
-            : "Idle: alerts paused while using the computer";
+        if (!_userIdle)
+            return "Idle: alerts paused while using the computer";
+
+        // When an allow-list is in force, the armed state is narrowed — only matching
+        // pings will fire — so say so rather than implying every ping wakes the user.
+        return AllowOnlyFilterActive
+            ? "Active: overlay armed only for pings matching your keywords"
+            : "Active: overlay armed for the next Slack ping";
     }
+
+    /// <summary>True when the allow-list filter is on and actually has keywords to allow.
+    /// Only then is the armed state genuinely restricted to matches — an empty allow-list
+    /// is inert (see <see cref="ShouldSuppressByKeyword"/>), so it must not change the
+    /// status text.</summary>
+    private bool AllowOnlyFilterActive =>
+        _settings.KeywordAllowEnabled
+        && !string.IsNullOrWhiteSpace(_settings.KeywordAllowText);
 
     private void Save() => _settingsService.Save(_settings);
 }

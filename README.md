@@ -59,7 +59,8 @@ Crucially, **SlackWake never talks to Slack's servers.** It does not use the Sla
 - **Configurable alert delay** — Wait a few seconds after the overlay appears before sound and flash kick in (default 5s), so a glance is enough to dismiss it without the full sensory assault.
 - **Visual flash** — Optionally strobe the overlay between two configurable colors to make it impossible to ignore from across the room. Overlay text automatically picks black or white per the [WCAG](https://www.w3.org/TR/WCAG21/) contrast formula so it stays legible against whatever colors you choose. Off by default; flash speed is bounded to stay clear of photosensitive-seizure territory.
 - **Auto-stop with per-channel control** — A *maximum duration* time-boxes continuous alerts so they self-stop even if the overlay is never dismissed. Toggle independently whether the cap ends the **looping sound**, the **visual flash**, or both — leave one on to keep, say, a silent flash going while the noise cuts out.
-- **Keyword muting** — Silently drop pings whose sender, channel, or text matches your keyword list (case-insensitive substring). Comma- or newline-separated; wrap a phrase in double quotes to match it verbatim. Useful for muting noisy bots, channels, or topics while away.
+- **Mute by keyword (block-list)** — Silently drop pings whose sender, channel, or text matches your keyword list (case-insensitive substring). Useful for silencing noisy bots, channels, or topics while away — everything else still wakes you.
+- **Alert only by keyword (allow-list)** — The inverse: wake you *only* for pings matching this separate list, and stay silent for everything else. For "while I'm away, only ping me for on-call/incidents." When active it's also called out in the status line. Both filters are independent and can run together: a ping wakes you only if it's **allowed and not muted** (muting wins on overlap). Both lists are comma- or newline-separated; wrap a phrase in double quotes to match it verbatim.
 - **System-tray native** — Lives in the notification area with an at-a-glance status icon: green = armed, white = idle/paused, slashed = disabled. Left-click opens settings; right-click for the menu.
 - **Start with Windows** — Optional per-user auto-launch at sign-in (silent, into the tray).
 - **Test overlay** — A one-click button to preview your overlay with current sound/flash settings, bypassing the idle gate.
@@ -73,6 +74,7 @@ Crucially, **SlackWake never talks to Slack's servers.** It does not use the Sla
   <img src="doc/SlackWake1.png" width="300">
   <img src="doc/SlackWake2.png" width="300">
   <img src="doc/SlackWake3.png" width="300">
+  <img src="doc/SlackWake4.png" width="300">
 </p>
 
 ---
@@ -81,7 +83,7 @@ Crucially, **SlackWake never talks to Slack's servers.** It does not use the Sla
 
 1. **`IdleMonitorService`** polls the Win32 `GetLastInputInfo` API once per second to determine how long it's been since any keyboard/mouse input system-wide. When that exceeds your idle timeout, SlackWake becomes *active (armed)*.
 2. **`SlackMonitorService`** requests notification-listener access once, then polls `UserNotificationListener.GetNotificationsAsync()` every ~1.5 seconds. New toasts whose source app matches "Slack" are parsed into a `SlackEvent` (sender/channel + body).
-3. **`MainViewModel`** is the gate. A Slack event only becomes an overlay if monitoring is enabled **and** you're currently idle **and** the message doesn't match a mute keyword. The gate is evaluated on the UI thread to avoid races with a concurrent disable.
+3. **`MainViewModel`** is the gate. A Slack event only becomes an overlay if monitoring is enabled **and** you're currently idle **and** it passes both keyword filters — i.e. it matches the allow-list (when that filter is on) **and** does *not* match the mute-list (when that filter is on). The gate is evaluated on the UI thread to avoid races with a concurrent disable.
 4. **`App.ShowOverlay`** opens one fullscreen `OverlayWindow` per monitor, plays the sound on the primary overlay only, and strobes the flash on all of them. Closing any overlay tears down the whole set.
 
 > **Why polling, not the `NotificationChanged` event?** For unpackaged Win32/WPF apps the event-based path reports access as `Allowed` but frequently never fires. `GetNotificationsAsync` reads the same data and works reliably; the ~1.5s latency is invisible for an "I walked away" alert.
@@ -183,7 +185,9 @@ A diagnostic log is written alongside it at `%AppData%\SlackWake\debug.log` (app
   "AlertAutoStopIncludesSound": true,
   "AlertAutoStopIncludesVisual": true,
   "KeywordFilterEnabled": false,
-  "KeywordFilterText": ""
+  "KeywordFilterText": "",
+  "KeywordAllowEnabled": false,
+  "KeywordAllowText": ""
 }
 ```
 
@@ -209,8 +213,10 @@ Hand-editing the file while the app is running is safe — the next save from th
 | `AlertMaxDurationSeconds` | int | `60` | How long continuous alerts run when auto-stop is on. Clamped **5–600s**. |
 | `AlertAutoStopIncludesSound` | bool | `true` | When auto-stop is on, also silence the **looping sound** at the cap. Off = sound runs until dismissed. |
 | `AlertAutoStopIncludesVisual` | bool | `true` | When auto-stop is on, also stop the **visual flash** at the cap. Off = flash runs until dismissed. |
-| `KeywordFilterEnabled` | bool | `false` | Mute pings matching a keyword. |
-| `KeywordFilterText` | string | `""` | Comma- or newline-separated keywords; case-insensitive substring match against sender + channel + text. Wrap a phrase in `"double quotes"` to match it verbatim (including commas). |
+| `KeywordFilterEnabled` | bool | `false` | **Mute by keyword** (block-list). Drop pings matching `KeywordFilterText`; everything else alerts. |
+| `KeywordFilterText` | string | `""` | Comma- or newline-separated block-list keywords; case-insensitive substring match against sender + channel + text. Wrap a phrase in `"double quotes"` to match it verbatim (including commas). |
+| `KeywordAllowEnabled` | bool | `false` | **Alert only by keyword** (allow-list). When on, *only* pings matching `KeywordAllowText` alert; everything else is dropped. An **empty `KeywordAllowText` is inert** (never silently mutes everything). Combined with the mute-list, a ping must be allowed **and** not muted. |
+| `KeywordAllowText` | string | `""` | Comma- or newline-separated allow-list keywords; same matching rules as `KeywordFilterText`. |
 
 ---
 
@@ -349,6 +355,7 @@ SlackWake is designed to be privacy-preserving by construction:
 | Sound doesn't play | Check *Sound alert* is on and a valid sound is selected. Empty/missing paths fall back to the system Exclamation sound; if your selected `.wav` was deleted, re-pick one. Only the **primary** monitor's overlay plays sound (by design). |
 | Flash doesn't show | Flash is **off by default** — enable *Visual flash*. Note sound and flash both wait out the *Alert delay*. |
 | Keyword mute isn't working | Ensure *Mute by keyword* is on. Matching is substring + case-insensitive across sender, channel, and message text. For a phrase containing a comma, wrap it in `"double quotes"`. |
+| Enabled *Alert only by keyword* but get **no** alerts | The allow-list is empty (inert by design) or none of your keywords match the ping text — only matching pings break through. Add/adjust keywords; the status line reads *"armed only for pings matching your keywords"* when the allow-list is active. Remember a ping must also clear the mute-list if that filter is on. |
 | "Start with Windows" doesn't stick | Locked-down group policy can block `HKCU\...\Run` writes; the toggle fails silently in that case. Add a Startup-folder shortcut manually as a fallback. |
 | It worked, then stopped after an OS upgrade | Re-grant notification access — major Windows updates occasionally reset the permission. |
 | Need more detail | Read `%AppData%\SlackWake\debug.log`. |

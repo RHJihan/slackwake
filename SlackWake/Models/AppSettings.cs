@@ -78,13 +78,36 @@ public class AppSettings
     /// original "stop everything" behavior.</summary>
     public bool AlertAutoStopIncludesVisual { get; set; } = true;
 
-    /// <summary>When true, Slack pings whose content matches any entry in
-    /// <see cref="KeywordFilterText"/> are silently dropped — no overlay, no sound,
-    /// no flash. Lets the user mute noisy bots, channels, or topics while away.</summary>
+    // ---- Keyword filters ----
+    // Two independent, complementary filters. "Mute by keyword" is a block-list (drop
+    // matching pings); "Alert only by keyword" is an allow-list (drop everything that
+    // does NOT match). They can both be on at once: a ping then wakes the user only if it
+    // is allowed AND not muted — muting wins on overlap (see MainViewModel). Each keeps
+    // its own keyword list so the two never share or clobber state.
+
+    /// <summary>Block-list switch. When true, Slack pings whose content matches any entry
+    /// in <see cref="KeywordFilterText"/> are silently dropped — no overlay, no sound, no
+    /// flash; everything else still alerts. Lets the user mute noisy bots, channels, or
+    /// topics while away. Off by default.</summary>
     public bool KeywordFilterEnabled { get; set; } = false;
 
-    /// <summary>Comma-separated keywords. A ping is muted when its sender, channel,
-    /// or message text contains any of these (case-insensitive substring match).
-    /// Blank entries are ignored. Only consulted when <see cref="KeywordFilterEnabled"/>.</summary>
+    /// <summary>Comma- or newline-separated block-list keywords. A ping is muted when its
+    /// sender, channel, or message text contains any of these (case-insensitive substring).
+    /// Wrap a phrase in double quotes to match it verbatim, including commas. Blank entries
+    /// are ignored. Only consulted when <see cref="KeywordFilterEnabled"/>.</summary>
     public string KeywordFilterText { get; set; } = string.Empty;
+
+    /// <summary>Allow-list switch. When true, ONLY pings whose content matches an entry in
+    /// <see cref="KeywordAllowText"/> are allowed through; every other ping is silently
+    /// dropped. Lets the user say "while I'm away, only wake me for on-call/incidents." Off
+    /// by default. An empty <see cref="KeywordAllowText"/> makes this inert rather than
+    /// muting everything (see MainViewModel) — enabling it before typing a keyword can never
+    /// silently swallow every ping.</summary>
+    public bool KeywordAllowEnabled { get; set; } = false;
+
+    /// <summary>Comma- or newline-separated allow-list keywords. A ping is allowed through
+    /// when its sender, channel, or message text contains any of these (case-insensitive
+    /// substring). Wrap a phrase in double quotes to match it verbatim, including commas.
+    /// Blank entries are ignored. Only consulted when <see cref="KeywordAllowEnabled"/>.</summary>
+    public string KeywordAllowText { get; set; } = string.Empty;
 }
