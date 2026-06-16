@@ -94,7 +94,8 @@ public class AppSettings
     /// <summary>Comma- or newline-separated block-list keywords. A ping is muted when its
     /// sender, channel, or message text contains any of these (case-insensitive substring).
     /// Wrap a phrase in double quotes to match it verbatim, including commas. Blank entries
-    /// are ignored. Only consulted when <see cref="KeywordFilterEnabled"/>.</summary>
+    /// are ignored, as is any entry prefixed with <c>//</c> — a commented-out keyword that
+    /// stays in the list but is skipped. Only consulted when <see cref="KeywordFilterEnabled"/>.</summary>
     public string KeywordFilterText { get; set; } = string.Empty;
 
     /// <summary>Allow-list switch. When true, ONLY pings whose content matches an entry in
@@ -108,6 +109,7 @@ public class AppSettings
     /// <summary>Comma- or newline-separated allow-list keywords. A ping is allowed through
     /// when its sender, channel, or message text contains any of these (case-insensitive
     /// substring). Wrap a phrase in double quotes to match it verbatim, including commas.
-    /// Blank entries are ignored. Only consulted when <see cref="KeywordAllowEnabled"/>.</summary>
+    /// Blank entries are ignored, as is any entry prefixed with <c>//</c> — a commented-out
+    /// keyword that stays in the list but is skipped. Only consulted when <see cref="KeywordAllowEnabled"/>.</summary>
     public string KeywordAllowText { get; set; } = string.Empty;
 }

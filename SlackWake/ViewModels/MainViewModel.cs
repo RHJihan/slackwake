@@ -712,22 +712,33 @@ public class MainViewModel : ObservableObject
     /// inside double quotes is taken verbatim as one keyword — so a phrase that itself
     /// contains a comma (e.g. <c>"is now on-call for"</c>) stays intact. Surrounding
     /// whitespace is trimmed; blank entries are dropped.
+    /// <para>
+    /// An entry whose first non-whitespace characters are <c>//</c> is treated as a
+    /// commented-out keyword and skipped, letting the user disable a keyword without
+    /// deleting it (e.g. <c>// deploy</c>). <c>//</c> is used rather than <c>#</c> so it
+    /// never collides with Slack channel names like <c>#random</c>. To match a literal
+    /// leading <c>//</c>, wrap the keyword in double quotes — quoted entries are never
+    /// read as comments.
+    /// </para>
     /// </summary>
     private static IEnumerable<string> ParseKeywords(string input)
     {
         var current = new StringBuilder();
         var inQuotes = false;
+        var wasQuoted = false;
 
         foreach (var c in input)
         {
             if (c == '"')
             {
                 inQuotes = !inQuotes;
+                wasQuoted = true;
             }
             else if ((c == ',' || c == '\n' || c == '\r') && !inQuotes)
             {
-                if (current.ToString().Trim() is { Length: > 0 } token) yield return token;
+                if (TakeKeyword(current, wasQuoted) is { } token) yield return token;
                 current.Clear();
+                wasQuoted = false;
             }
             else
             {
@@ -735,7 +746,21 @@ public class MainViewModel : ObservableObject
             }
         }
 
-        if (current.ToString().Trim() is { Length: > 0 } last) yield return last;
+        if (TakeKeyword(current, wasQuoted) is { } last) yield return last;
+    }
+
+    private const string CommentPrefix = "//";
+
+    /// <summary>
+    /// Trims a parsed entry and returns it as a keyword, or null when it should be
+    /// dropped — either blank or, unless it was quoted, a <c>//</c>-prefixed comment.
+    /// </summary>
+    private static string? TakeKeyword(StringBuilder builder, bool wasQuoted)
+    {
+        var token = builder.ToString().Trim();
+        if (token.Length == 0) return null;
+        if (!wasQuoted && token.StartsWith(CommentPrefix, StringComparison.Ordinal)) return null;
+        return token;
     }
 
     // Magic string published by SlackMonitorService when the listener is healthy.

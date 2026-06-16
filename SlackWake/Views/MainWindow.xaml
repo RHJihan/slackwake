@@ -409,7 +409,7 @@
 
                             <StackPanel IsEnabled="{Binding KeywordFilterEnabled}" Margin="0,16,0,0">
                                 <ui:TextBlock Text="Muted keywords" Style="{StaticResource FieldLabel}"/>
-                                <ui:TextBlock Text="A ping is muted when its sender, channel, or text contains any of these (case-insensitive). Wrap a phrase in double quotes to match it exactly, including commas."
+                                <ui:TextBlock Text="A ping is muted when its sender, channel, or text contains any of these (case-insensitive). Wrap a phrase in double quotes to match it exactly, including commas. Prefix an entry with // to comment it out — it stays in the list but is ignored."
                                               Style="{StaticResource Caption}" Margin="0,0,0,8"/>
                                 <!-- Grows with content: wraps long keyword lists, expands from
                                      3 up to 8 lines, then scrolls. AcceptsReturn lets the user
@@ -453,7 +453,7 @@
 
                             <StackPanel IsEnabled="{Binding KeywordAllowEnabled}" Margin="0,16,0,0">
                                 <ui:TextBlock Text="Allowed keywords" Style="{StaticResource FieldLabel}"/>
-                                <ui:TextBlock Text="Only pings whose sender, channel, or text contains one of these will wake you (case-insensitive). Wrap a phrase in double quotes to match it exactly, including commas. Leave empty to disable."
+                                <ui:TextBlock Text="Only pings whose sender, channel, or text contains one of these will wake you (case-insensitive). Wrap a phrase in double quotes to match it exactly, including commas. Prefix an entry with // to comment it out — it stays in the list but is ignored. Leave empty to disable."
                                               Style="{StaticResource Caption}" Margin="0,0,0,8"/>
                                 <ui:TextBox helpers:Placeholder.Text="@here, #incidents, &quot;on call&quot;"
                                             TextWrapping="Wrap"
