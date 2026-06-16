@@ -5,10 +5,10 @@
         xmlns:helpers="clr-namespace:SlackWake.Helpers"
         Title="SlackWake"
         Icon="/Assets/app.ico"
-        Width="500" Height="820"
+        Width="860" Height="720"
         WindowStartupLocation="CenterScreen"
         ResizeMode="CanResize"
-        MinWidth="420" MinHeight="520"
+        MinWidth="640" MinHeight="520"
         ExtendsContentIntoTitleBar="True"
         WindowBackdropType="Mica"
         WindowCornerPreference="Round">
@@ -31,6 +31,13 @@
         <Style TargetType="ui:TextBlock" x:Key="FieldLabel">
             <Setter Property="FontTypography" Value="BodyStrong"/>
             <Setter Property="Margin" Value="0,0,0,6"/>
+        </Style>
+
+        <!-- Title shown at the top of each navigation page, so the right-hand pane
+             always names the section the user landed on. -->
+        <Style TargetType="ui:TextBlock" x:Key="PageTitle">
+            <Setter Property="FontTypography" Value="Subtitle"/>
+            <Setter Property="Margin" Value="0,0,0,2"/>
         </Style>
 
         <!-- Numeric editor paired with a slider — compact, right-aligned, Fluent chrome.
@@ -92,395 +99,287 @@
                 </Setter.Value>
             </Setter>
         </Style>
+
+        <!-- A single navigation entry in the left rail. Styled as a Windows 11 / WinUI
+             NavigationView item: rounded hover fill, a tinted selected state, and a short
+             accent bar on the leading edge to mark the current page. The TabItem's Header
+             (icon + label) is dropped in via ContentSource. -->
+        <Style TargetType="TabItem" x:Key="NavItem">
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}"/>
+            <Setter Property="Margin" Value="0,1"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TabItem">
+                        <Border x:Name="Root"
+                                CornerRadius="6"
+                                Background="Transparent"
+                                Padding="10,9"
+                                SnapsToDevicePixels="True">
+                            <Grid>
+                                <Border x:Name="Accent"
+                                        Width="3" Height="18"
+                                        CornerRadius="1.5"
+                                        HorizontalAlignment="Left"
+                                        VerticalAlignment="Center"
+                                        Background="{DynamicResource AccentFillColorDefaultBrush}"
+                                        Visibility="Collapsed"/>
+                                <ContentPresenter ContentSource="Header"
+                                                  Margin="14,0,0,0"
+                                                  VerticalAlignment="Center"/>
+                            </Grid>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Root" Property="Background"
+                                        Value="{DynamicResource SubtleFillColorSecondaryBrush}"/>
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="Root" Property="Background"
+                                        Value="{DynamicResource SubtleFillColorTertiaryBrush}"/>
+                                <Setter TargetName="Accent" Property="Visibility" Value="Visible"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Turns the TabControl into a two-pane navigation surface: a left rail that
+             hosts the app identity + the nav items, and a right content pane that scrolls
+             only the selected page. This keeps every section a click away instead of one
+             long scroll, while every child still binds to the same MainViewModel. -->
+        <Style TargetType="TabControl" x:Key="NavTabControl">
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TabControl">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="208"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <!-- Navigation rail -->
+                            <Border Grid.Column="0"
+                                    BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}"
+                                    BorderThickness="0,0,1,0">
+                                <DockPanel Margin="12,4,12,12">
+                                    <!-- App identity, anchored at the top of the rail.
+                                         The bell is the same vector silhouette as
+                                         TrayIconFactory / generate-app-icon.ps1 — drawn as
+                                         geometry so it stays sharp at any DPI. -->
+                                    <StackPanel DockPanel.Dock="Top" Orientation="Horizontal"
+                                                Margin="6,6,0,18">
+                                        <Grid Width="30" Height="30" VerticalAlignment="Center" Margin="0,0,10,0">
+                                            <Border CornerRadius="7" SnapsToDevicePixels="True">
+                                                <Border.Background>
+                                                    <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                                        <GradientStop Color="#3ACC90" Offset="0"/>
+                                                        <GradientStop Color="#1E9E6A" Offset="1"/>
+                                                    </LinearGradientBrush>
+                                                </Border.Background>
+                                            </Border>
+                                            <Viewbox Width="18" Height="18" Stretch="Uniform">
+                                                <Canvas Width="32" Height="32">
+                                                    <Path Fill="White"
+                                                          Data="M14,4 L18,4 L18,7 C23,7.5 24,12 24,16 L24,22 L27,24 L27,25.5 L5,25.5 L5,24 L8,22 L8,16 C8,12 9,7.5 14,7 L14,4 Z M14.5,28 A1.5,1.5 0 1 0 17.5,28 A1.5,1.5 0 1 0 14.5,28 Z"/>
+                                                </Canvas>
+                                            </Viewbox>
+                                        </Grid>
+                                        <ui:TextBlock Text="SlackWake" FontTypography="BodyStrong"
+                                                      Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+                                                      VerticalAlignment="Center"/>
+                                    </StackPanel>
+
+                                    <!-- The TabItems render here, stacked vertically. -->
+                                    <StackPanel IsItemsHost="True" DockPanel.Dock="Top"/>
+                                </DockPanel>
+                            </Border>
+
+                            <!-- Content pane: only the active page scrolls, so most pages
+                                 fit without scrolling at all. -->
+                            <ScrollViewer Grid.Column="1"
+                                          VerticalScrollBarVisibility="Auto"
+                                          HorizontalScrollBarVisibility="Disabled"
+                                          Padding="28,22,28,16">
+                                <ContentPresenter ContentSource="SelectedContent"/>
+                            </ScrollViewer>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Label inside a nav item: icon + text, sized for the rail. -->
+        <Style TargetType="ui:SymbolIcon" x:Key="NavIcon">
+            <Setter Property="FontSize" Value="18"/>
+            <Setter Property="Margin" Value="0,0,12,0"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
     </ui:FluentWindow.Resources>
 
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
         <!-- Custom Fluent title bar; the window draws content right up to the edge
              (Mica backdrop). Closing hides to tray (handled in MainWindow.OnClosing). -->
         <ui:TitleBar Grid.Row="0"
-                     Title="SlackWake"
-                     ShowMaximize="False">
+                     Title="SlackWake">
             <ui:TitleBar.Icon>
                 <ui:ImageIcon Source="pack://application:,,,/Assets/app.ico"/>
             </ui:TitleBar.Icon>
         </ui:TitleBar>
 
-        <!-- DockPanel pins the status pill + test button at the bottom so they remain
-             visible regardless of scroll position; the ScrollViewer fills the rest. -->
-        <DockPanel Grid.Row="1" LastChildFill="True" Margin="0,0,0,0">
+        <!-- Navigation surface: left rail of pages, right scrolling content. -->
+        <TabControl Grid.Row="1"
+                    Style="{StaticResource NavTabControl}"
+                    ItemContainerStyle="{StaticResource NavItem}">
 
-            <!-- Status (pinned at the very bottom) -->
-            <ui:Card DockPanel.Dock="Bottom" Margin="24,0,24,20" Padding="16,12">
-                <StackPanel Orientation="Horizontal">
-                    <Border Width="12" Height="12" Margin="0,0,10,0"
-                            CornerRadius="6"
-                            Background="{Binding StatusBrush}"
-                            VerticalAlignment="Center"/>
-                    <ui:TextBlock Text="{Binding Status}"
-                                  FontTypography="BodyStrong"
-                                  TextWrapping="Wrap"
-                                  VerticalAlignment="Center"/>
-                </StackPanel>
-            </ui:Card>
-
-            <!-- Primary action (pinned just above status) -->
-            <ui:Button DockPanel.Dock="Bottom"
-                       Margin="24,0,24,12"
-                       Height="40"
-                       HorizontalAlignment="Stretch"
-                       HorizontalContentAlignment="Center"
-                       Appearance="Primary"
-                       Icon="{ui:SymbolIcon Eye24}"
-                       Command="{Binding TestOverlayCommand}"
-                       Content="Test overlay with current settings"
-                       ToolTip="Show a sample overlay right now using your current sound and flash settings (bypasses idle check)."/>
-
-            <!-- Scrollable settings -->
-            <ScrollViewer VerticalScrollBarVisibility="Auto"
-                          HorizontalScrollBarVisibility="Disabled"
-                          Padding="24,8,24,8">
-                <StackPanel>
-
-                    <!-- Hero header -->
-                    <StackPanel Orientation="Horizontal" Margin="0,8,0,4">
-                        <!-- Brand mark drawn as vector geometry (squircle tile + bell),
-                             not a rasterized .ico. Resolution-independent, so it stays
-                             pixel-sharp at any window size or display scale — the same
-                             bell silhouette as TrayIconFactory / generate-app-icon.ps1. -->
-                        <Grid Width="40" Height="40" VerticalAlignment="Center" Margin="0,0,14,0">
-                            <Border CornerRadius="9.5" SnapsToDevicePixels="True">
-                                <Border.Background>
-                                    <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
-                                        <GradientStop Color="#3ACC90" Offset="0"/>
-                                        <GradientStop Color="#1E9E6A" Offset="1"/>
-                                    </LinearGradientBrush>
-                                </Border.Background>
-                            </Border>
-                            <!-- The bell lives on the canonical 32x32 canvas (same as
-                                 TrayIconFactory / generate-app-icon.ps1). The explicit square
-                                 canvas is what centers it: scaling the Path's own bounds left a
-                                 gap on the left because the geometry starts at x=5, not x=0,
-                                 which shoved the bell to the right. -->
-                            <Viewbox Width="24" Height="24" Stretch="Uniform">
-                                <Canvas Width="32" Height="32">
-                                    <Path Fill="White"
-                                          Data="M14,4 L18,4 L18,7 C23,7.5 24,12 24,16 L24,22 L27,24 L27,25.5 L5,25.5 L5,24 L8,22 L8,16 C8,12 9,7.5 14,7 L14,4 Z M14.5,28 A1.5,1.5 0 1 0 17.5,28 A1.5,1.5 0 1 0 14.5,28 Z"/>
-                                </Canvas>
-                            </Viewbox>
-                        </Grid>
-                        <StackPanel VerticalAlignment="Center">
-                            <ui:TextBlock Text="SlackWake" FontTypography="Title"/>
-                            <ui:TextBlock Text="Wake me up when Slack pings during idle time."
-                                          Style="{StaticResource Caption}"/>
-                        </StackPanel>
+            <!-- ============================ General ============================ -->
+            <TabItem>
+                <TabItem.Header>
+                    <StackPanel Orientation="Horizontal">
+                        <ui:SymbolIcon Symbol="Settings24" Style="{StaticResource NavIcon}"/>
+                        <ui:TextBlock Text="General" VerticalAlignment="Center"/>
                     </StackPanel>
+                </TabItem.Header>
+                <StackPanel>
+                    <ui:TextBlock Text="General" Style="{StaticResource PageTitle}"/>
+                    <ui:TextBlock Text="Wake me up when Slack pings during idle time."
+                                  Style="{StaticResource Caption}" Margin="0,0,0,18"/>
 
-                    <!-- General -->
-                    <ui:TextBlock Text="General" FontTypography="BodyStrong"
-                                  Margin="2,18,0,8" Appearance="Secondary"/>
-                    <ui:Card Padding="0">
-                        <StackPanel>
-                            <!-- Enable monitoring (master switch) -->
-                            <Grid Margin="16,14,16,14">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto"/>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                </Grid.ColumnDefinitions>
-                                <ui:SymbolIcon Grid.Column="0" Symbol="Alert24" FontSize="20"
-                                               Margin="0,0,14,0" VerticalAlignment="Center"/>
-                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                    <ui:TextBlock Text="Enable monitoring" FontTypography="Body"/>
-                                    <ui:TextBlock Text="Watch for Slack pings while you're away."
-                                                  Style="{StaticResource Caption}"/>
-                                </StackPanel>
-                                <ui:ToggleSwitch Grid.Column="2" VerticalAlignment="Center"
-                                                 IsChecked="{Binding Enabled}"/>
-                            </Grid>
+                    <!-- One card per setting, matching the Filters and Alerts tabs:
+                         each standalone toggle is its own self-contained group. -->
 
-                            <Border Height="1" Background="{DynamicResource DividerStrokeColorDefaultBrush}"/>
-
-                            <!-- Start with Windows -->
-                            <Grid Margin="16,14,16,14">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto"/>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                </Grid.ColumnDefinitions>
-                                <ui:SymbolIcon Grid.Column="0" Symbol="Power24" FontSize="20"
-                                               Margin="0,0,14,0" VerticalAlignment="Center"/>
-                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                    <ui:TextBlock Text="Start with Windows" FontTypography="Body"/>
-                                    <ui:TextBlock Text="Launch SlackWake automatically at sign-in."
-                                                  Style="{StaticResource Caption}"/>
-                                </StackPanel>
-                                <ui:ToggleSwitch Grid.Column="2" VerticalAlignment="Center"
-                                                 IsChecked="{Binding StartWithWindows}"/>
-                            </Grid>
-                        </StackPanel>
+                    <!-- Enable monitoring (master switch) -->
+                    <ui:Card Padding="16">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <ui:SymbolIcon Grid.Column="0" Symbol="Alert24" FontSize="20"
+                                           Margin="0,0,14,0" VerticalAlignment="Center"/>
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                <ui:TextBlock Text="Enable monitoring" FontTypography="Body"/>
+                                <ui:TextBlock Text="Watch for Slack pings while you're away."
+                                              Style="{StaticResource Caption}"/>
+                            </StackPanel>
+                            <ui:ToggleSwitch Grid.Column="2" VerticalAlignment="Center"
+                                             IsChecked="{Binding Enabled}"/>
+                        </Grid>
                     </ui:Card>
 
-                    <!-- Idle & timing -->
-                    <ui:TextBlock Text="Idle &amp; timing" FontTypography="BodyStrong"
-                                  Margin="2,20,0,8" Appearance="Secondary"/>
+                    <!-- Start with Windows -->
+                    <ui:Card Padding="16" Margin="0,12,0,0">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <ui:SymbolIcon Grid.Column="0" Symbol="Power24" FontSize="20"
+                                           Margin="0,0,14,0" VerticalAlignment="Center"/>
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                <ui:TextBlock Text="Start with Windows" FontTypography="Body"/>
+                                <ui:TextBlock Text="Launch SlackWake automatically at sign-in."
+                                              Style="{StaticResource Caption}"/>
+                            </StackPanel>
+                            <ui:ToggleSwitch Grid.Column="2" VerticalAlignment="Center"
+                                             IsChecked="{Binding StartWithWindows}"/>
+                        </Grid>
+                    </ui:Card>
+
+                    <!-- Setup note -->
+                    <ui:InfoBar Margin="0,16,0,0"
+                                IsOpen="True"
+                                IsClosable="False"
+                                Severity="Informational"
+                                Title="Setup"
+                                Message="SlackWake reads Slack's native Windows toasts. Make sure the Slack desktop app is running, and that Windows notifications are allowed for SlackWake (Settings &gt; Privacy &amp; security &gt; Notifications)."/>
+                </StackPanel>
+            </TabItem>
+
+            <!-- ========================= Idle & timing ========================= -->
+            <TabItem>
+                <TabItem.Header>
+                    <StackPanel Orientation="Horizontal">
+                        <ui:SymbolIcon Symbol="Clock24" Style="{StaticResource NavIcon}"/>
+                        <ui:TextBlock Text="Idle &amp; timing" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </TabItem.Header>
+                <StackPanel>
+                    <ui:TextBlock Text="Idle &amp; timing" Style="{StaticResource PageTitle}"/>
+                    <ui:TextBlock Text="When SlackWake arms, and how long it waits before alerting."
+                                  Style="{StaticResource Caption}" Margin="0,0,0,18"/>
+
+                    <!-- One card per setting, matching the other tabs. -->
+
+                    <!-- Idle timeout -->
                     <ui:Card Padding="16">
                         <StackPanel>
-                            <!-- Idle timeout -->
-                            <StackPanel>
-                                <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
-                                    <ui:SymbolIcon Symbol="Clock24" FontSize="18"
-                                                   Margin="0,0,8,0" VerticalAlignment="Center"/>
-                                    <ui:TextBlock Text="Idle timeout (seconds)" FontTypography="BodyStrong"
-                                                  VerticalAlignment="Center"/>
-                                </StackPanel>
-                                <DockPanel LastChildFill="True">
-                                    <TextBox DockPanel.Dock="Right"
-                                             Style="{StaticResource NumericBox}"
-                                             helpers:NumericTextBoxBehavior.Enabled="True"
-                                             Text="{Binding IdleTimeoutSeconds, UpdateSourceTrigger=LostFocus}"/>
-                                    <Slider Minimum="10" Maximum="1800"
-                                            SmallChange="10" LargeChange="60"
-                                            Value="{Binding IdleTimeoutSeconds}"
-                                            VerticalAlignment="Center"/>
-                                </DockPanel>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                                <ui:SymbolIcon Symbol="Clock24" FontSize="18"
+                                               Margin="0,0,8,0" VerticalAlignment="Center"/>
+                                <ui:TextBlock Text="Idle timeout (seconds)" FontTypography="BodyStrong"
+                                              VerticalAlignment="Center"/>
                             </StackPanel>
-
-                            <Border Height="1" Margin="0,16"
-                                    Background="{DynamicResource DividerStrokeColorDefaultBrush}"/>
-
-                            <!-- Alert delay (governs both sound and flash — they start together) -->
-                            <StackPanel>
-                                <StackPanel Orientation="Horizontal" Margin="0,0,0,2">
-                                    <ui:SymbolIcon Symbol="Timer24" FontSize="18"
-                                                   Margin="0,0,8,0" VerticalAlignment="Center"/>
-                                    <ui:TextBlock Text="Alert delay (seconds)" FontTypography="BodyStrong"
-                                                  VerticalAlignment="Center"/>
-                                </StackPanel>
-                                <ui:TextBlock Text="Wait this long after the overlay appears before sound and flash start."
-                                              Style="{StaticResource Caption}" Margin="26,0,0,8"/>
-                                <DockPanel LastChildFill="True">
-                                    <TextBox DockPanel.Dock="Right"
-                                             Style="{StaticResource NumericBox}"
-                                             helpers:NumericTextBoxBehavior.Enabled="True"
-                                             Text="{Binding SoundDelaySeconds, UpdateSourceTrigger=LostFocus}"/>
-                                    <Slider Minimum="0" Maximum="120"
-                                            SmallChange="1" LargeChange="5"
-                                            Value="{Binding SoundDelaySeconds}"
-                                            VerticalAlignment="Center"/>
-                                </DockPanel>
-                            </StackPanel>
+                            <DockPanel LastChildFill="True">
+                                <TextBox DockPanel.Dock="Right"
+                                         Style="{StaticResource NumericBox}"
+                                         helpers:NumericTextBoxBehavior.Enabled="True"
+                                         Text="{Binding IdleTimeoutSeconds, UpdateSourceTrigger=LostFocus}"/>
+                                <Slider Minimum="10" Maximum="1800"
+                                        SmallChange="10" LargeChange="60"
+                                        Value="{Binding IdleTimeoutSeconds}"
+                                        VerticalAlignment="Center"/>
+                            </DockPanel>
                         </StackPanel>
                     </ui:Card>
 
-                    <!-- Alerts: sound and visual flash live in one group (a single Card),
-                         kept visually distinct by full-width dividers. The auto-stop block
-                         at the bottom is shared — its cap governs both the looping sound and
-                         the flash, so it sits below both rather than inside either. -->
-                    <ui:TextBlock Text="Alerts" FontTypography="BodyStrong"
-                                  Margin="2,20,0,8" Appearance="Secondary"/>
-                    <ui:Card Padding="16">
+                    <!-- Alert delay (governs both sound and flash — they start together) -->
+                    <ui:Card Padding="16" Margin="0,12,0,0">
                         <StackPanel>
-
-                            <!-- Sound alert -->
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto"/>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                </Grid.ColumnDefinitions>
-                                <ui:SymbolIcon Grid.Column="0" Symbol="Speaker224" FontSize="20"
-                                               Margin="0,0,14,0" VerticalAlignment="Center"/>
-                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                    <ui:TextBlock Text="Sound alert" FontTypography="Body"/>
-                                    <ui:TextBlock Text="Play a sound when the overlay appears."
-                                                  Style="{StaticResource Caption}"/>
-                                </StackPanel>
-                                <ui:ToggleSwitch Grid.Column="2" VerticalAlignment="Center"
-                                                 IsChecked="{Binding SoundEnabled}"/>
-                            </Grid>
-
-                            <StackPanel IsEnabled="{Binding SoundEnabled}" Margin="0,16,0,0">
-                                <ui:TextBlock Text="Sound" Style="{StaticResource FieldLabel}"/>
-                                <DockPanel LastChildFill="True">
-                                    <ui:Button DockPanel.Dock="Right"
-                                               Width="40" Height="36"
-                                               Margin="10,0,0,0"
-                                               Padding="0"
-                                               VerticalAlignment="Center"
-                                               HorizontalContentAlignment="Center"
-                                               VerticalContentAlignment="Center"
-                                               Command="{Binding TogglePreviewCommand}"
-                                               ToolTip="Preview selected sound">
-                                        <ui:Button.Icon>
-                                            <ui:SymbolIcon Symbol="{Binding PreviewButtonIcon}"
-                                                           Filled="True"
-                                                           FontSize="18"/>
-                                        </ui:Button.Icon>
-                                    </ui:Button>
-                                    <ComboBox ItemsSource="{Binding AvailableSounds}"
-                                              SelectedItem="{Binding SelectedSound}"
-                                              DisplayMemberPath="DisplayName"
-                                              VerticalAlignment="Center"
-                                              helpers:SoundHoverPreviewBehavior.PreviewCommand="{Binding PreviewSoundCommand}"
-                                              helpers:SoundHoverPreviewBehavior.StopCommand="{Binding StopPreviewCommand}"
-                                              helpers:SoundHoverPreviewBehavior.DelayMilliseconds="200"/>
-                                </DockPanel>
-
-                                <!-- Loop sound -->
-                                <Grid Margin="0,16,0,0">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                    </Grid.ColumnDefinitions>
-                                    <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,12,0">
-                                        <ui:TextBlock Text="Loop sound" FontTypography="Body"/>
-                                        <ui:TextBlock Text="Replay the alert continuously instead of playing once."
-                                                      Style="{StaticResource Caption}"/>
-                                    </StackPanel>
-                                    <ui:ToggleSwitch Grid.Column="1" VerticalAlignment="Center"
-                                                     IsChecked="{Binding SoundLoop}"/>
-                                </Grid>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,2">
+                                <ui:SymbolIcon Symbol="Timer24" FontSize="18"
+                                               Margin="0,0,8,0" VerticalAlignment="Center"/>
+                                <ui:TextBlock Text="Alert delay (seconds)" FontTypography="BodyStrong"
+                                              VerticalAlignment="Center"/>
                             </StackPanel>
-
-                            <Border Height="1" Margin="0,16"
-                                    Background="{DynamicResource DividerStrokeColorDefaultBrush}"/>
-
-                            <!-- Visual flash -->
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto"/>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                </Grid.ColumnDefinitions>
-                                <ui:SymbolIcon Grid.Column="0" Symbol="Flash24" FontSize="20"
-                                               Margin="0,0,14,0" VerticalAlignment="Center"/>
-                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                    <ui:TextBlock Text="Visual flash" FontTypography="Body"/>
-                                    <ui:TextBlock Text="Strobe the overlay between two colors."
-                                                  Style="{StaticResource Caption}"/>
-                                </StackPanel>
-                                <ui:ToggleSwitch Grid.Column="2" VerticalAlignment="Center"
-                                                 IsChecked="{Binding FlashEnabled}"/>
-                            </Grid>
-
-                            <StackPanel IsEnabled="{Binding FlashEnabled}" Margin="0,16,0,0">
-                                <ui:TextBlock Text="Flash speed (milliseconds per color change)"
-                                              Style="{StaticResource FieldLabel}"/>
-                                <DockPanel LastChildFill="True">
-                                    <TextBox DockPanel.Dock="Right"
-                                             Style="{StaticResource NumericBox}"
-                                             helpers:NumericTextBoxBehavior.Enabled="True"
-                                             Text="{Binding FlashIntervalMs, UpdateSourceTrigger=LostFocus}"/>
-                                    <Slider Minimum="100" Maximum="2000"
-                                            SmallChange="50" LargeChange="200"
-                                            Value="{Binding FlashIntervalMs}"
-                                            VerticalAlignment="Center"/>
-                                </DockPanel>
-
-                                <ui:TextBlock Text="Flash colors"
-                                              Style="{StaticResource FieldLabel}" Margin="0,16,0,2"/>
-                                <ui:TextBlock Text="Click a swatch to change it; the overlay text picks its own contrast."
-                                              Style="{StaticResource Caption}" Margin="0,0,0,8"/>
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="12"/>
-                                        <ColumnDefinition Width="*"/>
-                                    </Grid.ColumnDefinitions>
-                                    <Button Grid.Column="0"
-                                            Style="{StaticResource ColorSwatch}"
-                                            Background="{Binding FlashColorABrush}"
-                                            Foreground="{Binding FlashColorAContrastBrush}"
-                                            Command="{Binding PickFlashColorACommand}"
-                                            Content="{Binding FlashColorA}"
-                                            ToolTip="Click to choose the first flash color"/>
-                                    <Button Grid.Column="2"
-                                            Style="{StaticResource ColorSwatch}"
-                                            Background="{Binding FlashColorBBrush}"
-                                            Foreground="{Binding FlashColorBContrastBrush}"
-                                            Command="{Binding PickFlashColorBCommand}"
-                                            Content="{Binding FlashColorB}"
-                                            ToolTip="Click to choose the second flash color"/>
-                                </Grid>
-                            </StackPanel>
-
-                            <Border Height="1" Margin="0,16"
-                                    Background="{DynamicResource DividerStrokeColorDefaultBrush}"/>
-
-                            <!-- Auto-stop. Greys out unless at least one alert channel is
-                                 active (sound enabled or visual flash on); a dismissed overlay
-                                 with neither has nothing to cap. The sound and the visual flash
-                                 opt in independently via the two toggles below. -->
-                            <StackPanel IsEnabled="{Binding CanAutoStopAlerts}">
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="Auto"/>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                    </Grid.ColumnDefinitions>
-                                    <ui:SymbolIcon Grid.Column="0" Symbol="TimerOff24" FontSize="20"
-                                                   Margin="0,0,14,0" VerticalAlignment="Center"/>
-                                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                        <ui:TextBlock Text="Stop alerts automatically" FontTypography="Body"/>
-                                        <ui:TextBlock Text="Stop continuous alerts after a set time, even if the overlay is still open."
-                                                      Style="{StaticResource Caption}"/>
-                                    </StackPanel>
-                                    <ui:ToggleSwitch Grid.Column="2" VerticalAlignment="Center"
-                                                     IsChecked="{Binding AlertAutoStopEnabled}"/>
-                                </Grid>
-
-                                <StackPanel IsEnabled="{Binding AlertAutoStopEnabled}" Margin="0,16,0,0">
-                                    <!-- Which alerts to stop, then how long to wait — reads as one
-                                         sentence with the master row: "Stop [these alerts]
-                                         automatically [after this long]." Check boxes (not toggle
-                                         switches) because this is a multi-select subset of one
-                                         setting, not two standalone features. Each greys out when its
-                                         channel is off entirely — nothing to time-box there. The sound
-                                         box stays available even for a single (non-looping) play, since
-                                         the cap can cut off a clip that runs longer than the limit. -->
-                                    <ui:TextBlock Text="Alerts to stop" Style="{StaticResource FieldLabel}"
-                                                  Margin="0,0,0,2"/>
-                                    <ui:TextBlock Text="Unchecked alerts keep running until you dismiss the overlay."
-                                                  Style="{StaticResource Caption}" Margin="0,0,0,8"/>
-                                    <StackPanel Orientation="Horizontal">
-                                        <CheckBox Content="Stop Sound alert"
-                                                  IsEnabled="{Binding CanAutoStopSound}"
-                                                  IsChecked="{Binding AlertAutoStopIncludesSound}"
-                                                  Margin="0,0,28,0"/>
-                                        <CheckBox Content="Stop Visual flash"
-                                                  IsEnabled="{Binding CanAutoStopVisual}"
-                                                  IsChecked="{Binding AlertAutoStopIncludesVisual}"/>
-                                    </StackPanel>
-
-                                    <ui:TextBlock Text="Maximum duration (seconds)"
-                                                  Style="{StaticResource FieldLabel}" Margin="0,16,0,6"/>
-                                    <DockPanel LastChildFill="True">
-                                        <TextBox DockPanel.Dock="Right"
-                                                 Style="{StaticResource NumericBox}"
-                                                 helpers:NumericTextBoxBehavior.Enabled="True"
-                                                 Text="{Binding AlertMaxDurationSeconds, UpdateSourceTrigger=LostFocus}"/>
-                                        <Slider Minimum="5" Maximum="3600"
-                                                SmallChange="5" LargeChange="60"
-                                                Value="{Binding AlertMaxDurationSeconds}"
-                                                VerticalAlignment="Center"/>
-                                    </DockPanel>
-                                    <ui:TextBlock Text="{Binding AlertMaxDurationFriendly}"
-                                                  Style="{StaticResource Caption}"
-                                                  Margin="0,6,0,0"
-                                                  Visibility="{Binding ShowAlertMaxDurationFriendly, Converter={StaticResource BoolToVis}}"/>
-                                </StackPanel>
-                            </StackPanel>
+                            <ui:TextBlock Text="Wait this long after the overlay appears before sound and flash start."
+                                          Style="{StaticResource Caption}" Margin="26,0,0,8"/>
+                            <DockPanel LastChildFill="True">
+                                <TextBox DockPanel.Dock="Right"
+                                         Style="{StaticResource NumericBox}"
+                                         helpers:NumericTextBoxBehavior.Enabled="True"
+                                         Text="{Binding SoundDelaySeconds, UpdateSourceTrigger=LostFocus}"/>
+                                <Slider Minimum="0" Maximum="120"
+                                        SmallChange="1" LargeChange="5"
+                                        Value="{Binding SoundDelaySeconds}"
+                                        VerticalAlignment="Center"/>
+                            </DockPanel>
                         </StackPanel>
                     </ui:Card>
+                </StackPanel>
+            </TabItem>
 
-                    <!-- Filters -->
-                    <ui:TextBlock Text="Filters" FontTypography="BodyStrong"
-                                  Margin="2,20,0,8" Appearance="Secondary"/>
+            <!-- ============================ Filters ============================ -->
+            <TabItem>
+                <TabItem.Header>
+                    <StackPanel Orientation="Horizontal">
+                        <ui:SymbolIcon Symbol="Filter24" Style="{StaticResource NavIcon}"/>
+                        <ui:TextBlock Text="Filters" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </TabItem.Header>
+                <StackPanel>
+                    <ui:TextBlock Text="Filters" Style="{StaticResource PageTitle}"/>
+                    <ui:TextBlock Text="Choose which Slack pings are allowed to wake you."
+                                  Style="{StaticResource Caption}" Margin="0,0,0,18"/>
+
                     <!-- Two independent, complementary filters, each its own card with its
                          own keyword list. "Mute by keyword" is a block-list; "Alert only by
                          keyword" is an allow-list. Distinct icons (bell-off vs bell-on) and
@@ -578,17 +477,260 @@
                                 Title="Both filters are on"
                                 Message="A ping wakes you only if it matches an allowed keyword and does not match a muted keyword. If a keyword is in both lists, muting wins."
                                 Visibility="{Binding ShowFilterInteractionNote, Converter={StaticResource BoolToVis}}"/>
-
-                    <!-- Setup note -->
-                    <ui:InfoBar Margin="0,20,0,8"
-                                IsOpen="True"
-                                IsClosable="False"
-                                Severity="Informational"
-                                Title="Setup"
-                                Message="SlackWake reads Slack's native Windows toasts. Make sure the Slack desktop app is running, and that Windows notifications are allowed for SlackWake (Settings &gt; Privacy &amp; security &gt; Notifications)."/>
-
                 </StackPanel>
-            </ScrollViewer>
-        </DockPanel>
+            </TabItem>
+
+            <!-- ============================= Alerts ============================ -->
+            <TabItem>
+                <TabItem.Header>
+                    <StackPanel Orientation="Horizontal">
+                        <ui:SymbolIcon Symbol="Speaker224" Style="{StaticResource NavIcon}"/>
+                        <ui:TextBlock Text="Alerts" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </TabItem.Header>
+                <StackPanel>
+                    <ui:TextBlock Text="Alerts" Style="{StaticResource PageTitle}"/>
+                    <ui:TextBlock Text="How SlackWake gets your attention when a ping breaks through."
+                                  Style="{StaticResource Caption}" Margin="0,0,0,18"/>
+
+                    <!-- Three independent alert channels, each its own card: the looping
+                         sound, the visual flash, and the shared auto-stop cap. Separate
+                         cards (rather than one card split by dividers) follow the Windows 11
+                         Settings pattern — each feature is a self-contained group the user
+                         can scan and toggle on its own. Auto-stop sits last because its cap
+                         governs whichever of the two channels above are running. -->
+
+                    <!-- Sound alert -->
+                    <ui:Card Padding="16">
+                        <StackPanel>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <ui:SymbolIcon Grid.Column="0" Symbol="Speaker224" FontSize="20"
+                                               Margin="0,0,14,0" VerticalAlignment="Center"/>
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <ui:TextBlock Text="Sound alert" FontTypography="Body"/>
+                                    <ui:TextBlock Text="Play a sound when the overlay appears."
+                                                  Style="{StaticResource Caption}"/>
+                                </StackPanel>
+                                <ui:ToggleSwitch Grid.Column="2" VerticalAlignment="Center"
+                                                 IsChecked="{Binding SoundEnabled}"/>
+                            </Grid>
+
+                            <StackPanel IsEnabled="{Binding SoundEnabled}" Margin="0,16,0,0">
+                                <ui:TextBlock Text="Sound" Style="{StaticResource FieldLabel}"/>
+                                <DockPanel LastChildFill="True">
+                                    <ui:Button DockPanel.Dock="Right"
+                                               Width="40" Height="36"
+                                               Margin="10,0,0,0"
+                                               Padding="0"
+                                               VerticalAlignment="Center"
+                                               HorizontalContentAlignment="Center"
+                                               VerticalContentAlignment="Center"
+                                               Command="{Binding TogglePreviewCommand}"
+                                               ToolTip="Preview selected sound">
+                                        <ui:Button.Icon>
+                                            <ui:SymbolIcon Symbol="{Binding PreviewButtonIcon}"
+                                                           Filled="True"
+                                                           FontSize="18"/>
+                                        </ui:Button.Icon>
+                                    </ui:Button>
+                                    <ComboBox ItemsSource="{Binding AvailableSounds}"
+                                              SelectedItem="{Binding SelectedSound}"
+                                              DisplayMemberPath="DisplayName"
+                                              VerticalAlignment="Center"
+                                              helpers:SoundHoverPreviewBehavior.PreviewCommand="{Binding PreviewSoundCommand}"
+                                              helpers:SoundHoverPreviewBehavior.StopCommand="{Binding StopPreviewCommand}"
+                                              helpers:SoundHoverPreviewBehavior.DelayMilliseconds="200"/>
+                                </DockPanel>
+
+                                <!-- Loop sound -->
+                                <Grid Margin="0,16,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,12,0">
+                                        <ui:TextBlock Text="Loop sound" FontTypography="Body"/>
+                                        <ui:TextBlock Text="Replay the alert continuously instead of playing once."
+                                                      Style="{StaticResource Caption}"/>
+                                    </StackPanel>
+                                    <ui:ToggleSwitch Grid.Column="1" VerticalAlignment="Center"
+                                                     IsChecked="{Binding SoundLoop}"/>
+                                </Grid>
+                            </StackPanel>
+                        </StackPanel>
+                    </ui:Card>
+
+                    <!-- Visual flash -->
+                    <ui:Card Padding="16" Margin="0,12,0,0">
+                        <StackPanel>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <ui:SymbolIcon Grid.Column="0" Symbol="Flash24" FontSize="20"
+                                               Margin="0,0,14,0" VerticalAlignment="Center"/>
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <ui:TextBlock Text="Visual flash" FontTypography="Body"/>
+                                    <ui:TextBlock Text="Strobe the overlay between two colors."
+                                                  Style="{StaticResource Caption}"/>
+                                </StackPanel>
+                                <ui:ToggleSwitch Grid.Column="2" VerticalAlignment="Center"
+                                                 IsChecked="{Binding FlashEnabled}"/>
+                            </Grid>
+
+                            <StackPanel IsEnabled="{Binding FlashEnabled}" Margin="0,16,0,0">
+                                <ui:TextBlock Text="Flash speed (milliseconds per color change)"
+                                              Style="{StaticResource FieldLabel}"/>
+                                <DockPanel LastChildFill="True">
+                                    <TextBox DockPanel.Dock="Right"
+                                             Style="{StaticResource NumericBox}"
+                                             helpers:NumericTextBoxBehavior.Enabled="True"
+                                             Text="{Binding FlashIntervalMs, UpdateSourceTrigger=LostFocus}"/>
+                                    <Slider Minimum="100" Maximum="2000"
+                                            SmallChange="50" LargeChange="200"
+                                            Value="{Binding FlashIntervalMs}"
+                                            VerticalAlignment="Center"/>
+                                </DockPanel>
+
+                                <ui:TextBlock Text="Flash colors"
+                                              Style="{StaticResource FieldLabel}" Margin="0,16,0,2"/>
+                                <ui:TextBlock Text="Click a swatch to change it; the overlay text picks its own contrast."
+                                              Style="{StaticResource Caption}" Margin="0,0,0,8"/>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="12"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Button Grid.Column="0"
+                                            Style="{StaticResource ColorSwatch}"
+                                            Background="{Binding FlashColorABrush}"
+                                            Foreground="{Binding FlashColorAContrastBrush}"
+                                            Command="{Binding PickFlashColorACommand}"
+                                            Content="{Binding FlashColorA}"
+                                            ToolTip="Click to choose the first flash color"/>
+                                    <Button Grid.Column="2"
+                                            Style="{StaticResource ColorSwatch}"
+                                            Background="{Binding FlashColorBBrush}"
+                                            Foreground="{Binding FlashColorBContrastBrush}"
+                                            Command="{Binding PickFlashColorBCommand}"
+                                            Content="{Binding FlashColorB}"
+                                            ToolTip="Click to choose the second flash color"/>
+                                </Grid>
+                            </StackPanel>
+                        </StackPanel>
+                    </ui:Card>
+
+                    <!-- Auto-stop. Greys out unless at least one alert channel is
+                         active (sound enabled or visual flash on); a dismissed overlay
+                         with neither has nothing to cap. The sound and the visual flash
+                         opt in independently via the two toggles below. -->
+                    <ui:Card Padding="16" Margin="0,12,0,0">
+                        <StackPanel IsEnabled="{Binding CanAutoStopAlerts}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <ui:SymbolIcon Grid.Column="0" Symbol="TimerOff24" FontSize="20"
+                                               Margin="0,0,14,0" VerticalAlignment="Center"/>
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <ui:TextBlock Text="Stop alerts automatically" FontTypography="Body"/>
+                                    <ui:TextBlock Text="Stop continuous alerts after a set time, even if the overlay is still open."
+                                                  Style="{StaticResource Caption}"/>
+                                </StackPanel>
+                                <ui:ToggleSwitch Grid.Column="2" VerticalAlignment="Center"
+                                                 IsChecked="{Binding AlertAutoStopEnabled}"/>
+                            </Grid>
+
+                            <StackPanel IsEnabled="{Binding AlertAutoStopEnabled}" Margin="0,16,0,0">
+                                <!-- Which alerts to stop, then how long to wait — reads as one
+                                     sentence with the master row: "Stop [these alerts]
+                                     automatically [after this long]." Check boxes (not toggle
+                                     switches) because this is a multi-select subset of one
+                                     setting, not two standalone features. Each greys out when its
+                                     channel is off entirely — nothing to time-box there. The sound
+                                     box stays available even for a single (non-looping) play, since
+                                     the cap can cut off a clip that runs longer than the limit. -->
+                                <ui:TextBlock Text="Alerts to stop" Style="{StaticResource FieldLabel}"
+                                              Margin="0,0,0,2"/>
+                                <ui:TextBlock Text="Unchecked alerts keep running until you dismiss the overlay."
+                                              Style="{StaticResource Caption}" Margin="0,0,0,8"/>
+                                <StackPanel Orientation="Horizontal">
+                                    <CheckBox Content="Stop Sound alert"
+                                              IsEnabled="{Binding CanAutoStopSound}"
+                                              IsChecked="{Binding AlertAutoStopIncludesSound}"
+                                              Margin="0,0,28,0"/>
+                                    <CheckBox Content="Stop Visual flash"
+                                              IsEnabled="{Binding CanAutoStopVisual}"
+                                              IsChecked="{Binding AlertAutoStopIncludesVisual}"/>
+                                </StackPanel>
+
+                                <ui:TextBlock Text="Maximum duration (seconds)"
+                                              Style="{StaticResource FieldLabel}" Margin="0,16,0,6"/>
+                                <DockPanel LastChildFill="True">
+                                    <TextBox DockPanel.Dock="Right"
+                                             Style="{StaticResource NumericBox}"
+                                             helpers:NumericTextBoxBehavior.Enabled="True"
+                                             Text="{Binding AlertMaxDurationSeconds, UpdateSourceTrigger=LostFocus}"/>
+                                    <Slider Minimum="5" Maximum="3600"
+                                            SmallChange="5" LargeChange="60"
+                                            Value="{Binding AlertMaxDurationSeconds}"
+                                            VerticalAlignment="Center"/>
+                                </DockPanel>
+                                <ui:TextBlock Text="{Binding AlertMaxDurationFriendly}"
+                                              Style="{StaticResource Caption}"
+                                              Margin="0,6,0,0"
+                                              Visibility="{Binding ShowAlertMaxDurationFriendly, Converter={StaticResource BoolToVis}}"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </ui:Card>
+                </StackPanel>
+            </TabItem>
+        </TabControl>
+
+        <!-- Persistent action bar: status pill + test button stay visible on every page,
+             so the user can check state and fire a test from anywhere. A top divider
+             separates it from the scrolling content above. -->
+        <Border Grid.Row="2"
+                BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}"
+                BorderThickness="0,1,0,0">
+            <Grid Margin="20,12,20,16">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <!-- Status -->
+                <StackPanel Grid.Column="0" Orientation="Horizontal"
+                            VerticalAlignment="Center" Margin="0,0,16,0">
+                    <Border Width="12" Height="12" Margin="0,0,10,0"
+                            CornerRadius="6"
+                            Background="{Binding StatusBrush}"
+                            VerticalAlignment="Center"/>
+                    <ui:TextBlock Text="{Binding Status}"
+                                  FontTypography="Body"
+                                  TextWrapping="Wrap"
+                                  VerticalAlignment="Center"/>
+                </StackPanel>
+
+                <!-- Primary action -->
+                <ui:Button Grid.Column="1"
+                           Height="38"
+                           Appearance="Primary"
+                           Icon="{ui:SymbolIcon Eye24}"
+                           Command="{Binding TestOverlayCommand}"
+                           Content="Test overlay"
+                           ToolTip="Show a sample overlay right now using your current sound and flash settings (bypasses idle check)."/>
+            </Grid>
+        </Border>
     </Grid>
 </ui:FluentWindow>
