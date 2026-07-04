@@ -52,7 +52,7 @@ public partial class App : System.Windows.Application
         var idle = new IdleMonitorService();
         var slack = new SlackMonitorService();
 
-        _vm = new MainViewModel(settings, settingsService, idle, slack, ShowOverlay, PickColor);
+        _vm = new MainViewModel(settings, settingsService, idle, slack, ShowOverlay, PickColor, PickAudioFile);
 
         // Match the Fluent palette to the user's current Windows light/dark theme and
         // accent before any window is shown. Purely presentational — does not touch the
@@ -119,6 +119,9 @@ public partial class App : System.Windows.Application
     private Forms.ContextMenuStrip BuildContextMenu()
     {
         var menu = new Forms.ContextMenuStrip();
+        // Give the menu the modern Windows 11 flyout look before building items so the
+        // bold master item inherits the themed font.
+        ModernMenuRenderer.Apply(menu);
 
         // Master switch — bold to read as the primary/default action.
         _miEnableMonitoring = new Forms.ToolStripMenuItem("Enable monitoring", null, (_, _) => ToggleEnabled())
@@ -240,6 +243,25 @@ public partial class App : System.Windows.Application
             Owner = _settingsWindow,
         };
         return picker.ShowDialog() == true ? picker.SelectedColor : null;
+    }
+
+    /// <summary>
+    /// Opens the standard Windows file picker for a custom alert sound and returns the
+    /// chosen path, or null if the user cancelled. Injected into the view-model so the VM
+    /// stays free of any dialog/View dependency (see <see cref="PickColor"/>).
+    /// </summary>
+    private string? PickAudioFile()
+    {
+        var dialog = new Microsoft.Win32.OpenFileDialog
+        {
+            Title = "Select an audio file",
+            Filter = SoundLibrary.FileDialogFilter,
+            CheckFileExists = true,
+            Multiselect = false,
+            // Start where alert sounds usually live; harmless if the folder is absent.
+            InitialDirectory = SoundLibrary.DefaultFolder,
+        };
+        return dialog.ShowDialog(_settingsWindow) == true ? dialog.FileName : null;
     }
 
     /// <summary>

@@ -71,8 +71,8 @@ internal static class TrayIconFactory
             else
             {
                 // Active = armed-and-about-to-fire (green); Idle = paused while the
-                // user is present (white).
-                var fillColor = state == TrayState.Active ? Color.FromArgb(0x2E, 0xB6, 0x7D) : Color.White;
+                // user is present (amber).
+                var fillColor = state == TrayState.Active ? Color.FromArgb(0x2E, 0xB6, 0x7D) : Color.FromArgb(0xE3, 0xB3, 0x41);
                 using var fill = new SolidBrush(fillColor);
                 g.FillPath(fill, bell);
             }

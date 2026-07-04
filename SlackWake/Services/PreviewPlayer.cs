@@ -75,17 +75,10 @@ public sealed class PreviewPlayer
     }
 
     /// <summary>
-    /// Empty path means "system default" — map it to the canonical Exclamation wav so
-    /// MediaPlayer has a real file to open and MediaEnded can fire to flip the button back.
+    /// Resolves the stored selection to a real file (Windows default / the file / Ring08) so
+    /// MediaPlayer has something to open and MediaEnded can fire to flip the button back.
     /// </summary>
-    private static string? ResolvePath(string? filePath)
-    {
-        if (!string.IsNullOrWhiteSpace(filePath) && File.Exists(filePath))
-            return filePath;
-
-        var fallback = Path.Combine(SoundLibrary.DefaultFolder, "Windows Exclamation.wav");
-        return File.Exists(fallback) ? fallback : null;
-    }
+    private static string? ResolvePath(string? filePath) => SoundLibrary.ResolvePlayablePath(filePath);
 
     private void SetPlaying(bool value)
     {

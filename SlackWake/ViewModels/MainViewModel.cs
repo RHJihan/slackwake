@@ -3,6 +3,9 @@
 
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.IO;
+using System.Linq;
 using System.Text;
 using System.Windows;
 using System.Windows.Input;
@@ -36,6 +39,11 @@ public class MainViewModel : ObservableObject
     // View/Window reference — the composition root (App) supplies the real dialog.
     private readonly Func<Color, Color?> _pickColor;
 
+    // Opens a file picker for a custom alert sound and returns the chosen path, or
+    // null if cancelled. Injected for the same reason as _pickColor — the view-model
+    // owns the "what happens on Browse" logic without knowing about OpenFileDialog.
+    private readonly Func<string?> _pickAudioFile;
+
     // Raw OS fact: has the user been away from keyboard/mouse longer than the
     // configured timeout? SlackWake's own "active vs idle" state is derived from
     // this (see IsActive) — when the user is idle, SlackWake is active (armed).
@@ -49,7 +57,8 @@ public class MainViewModel : ObservableObject
         IdleMonitorService idle,
         SlackMonitorService slack,
         Action<SlackEvent> showOverlay,
-        Func<Color, Color?> pickColor)
+        Func<Color, Color?> pickColor,
+        Func<string?> pickAudioFile)
     {
         _settings = settings;
         _settingsService = settingsService;
@@ -57,6 +66,7 @@ public class MainViewModel : ObservableObject
         _slack = slack;
         _showOverlay = showOverlay;
         _pickColor = pickColor;
+        _pickAudioFile = pickAudioFile;
 
         _idle.IdleTimeChanged += OnIdleTick;
         _slack.NotificationReceived += OnSlackNotification;
@@ -66,7 +76,10 @@ public class MainViewModel : ObservableObject
             RecomputeStatus();
         };
 
-        AvailableSounds = SoundLibrary.Enumerate();
+        // Seed with the persisted custom path so a file picked in a past session
+        // reappears as its own entry (and stays selectable) after a restart.
+        AvailableSounds = new ObservableCollection<SoundLibrary.SoundOption>(
+            SoundLibrary.Enumerate(_settings.SoundFilePath));
         _selectedSound = ResolveSelectedSound(_settings.SoundFilePath);
 
         _preview = new PreviewPlayer();
@@ -102,14 +115,41 @@ public class MainViewModel : ObservableObject
 
     private SoundLibrary.SoundOption ResolveSelectedSound(string path)
     {
+        // Match a built-in or a still-present custom file.
+        // (Skip the Browse action row — it carries no real path.)
+        if (!string.IsNullOrEmpty(path))
+        {
+            foreach (var s in AvailableSounds)
+            {
+                if (!s.IsBrowse && SoundLibrary.PathsEqual(s.FilePath, path))
+                    return s;
+            }
+        }
+
+        // Fresh install (blank) or a saved file that's gone: fall back to SlackWake's own
+        // default (Ring08) and persist it, so the choice sticks and the next alert plays a
+        // real sound rather than silently reverting.
+        var fallback = ResolveFallbackSound();
+        _settings.SoundFilePath = fallback.FilePath;
+        Save();
+        return fallback;
+    }
+
+    /// <summary>Picks SlackWake's default entry: Ring08.wav when present in the list (it ships
+    /// with Windows), otherwise the first real sound so a resolution never lands on the Browse
+    /// row or an empty list.</summary>
+    private SoundLibrary.SoundOption ResolveFallbackSound()
+    {
         foreach (var s in AvailableSounds)
         {
-            if (string.Equals(s.FilePath, path, StringComparison.OrdinalIgnoreCase))
+            if (SoundLibrary.PathsEqual(s.FilePath, SoundLibrary.FallbackFilePath))
                 return s;
         }
-        // Saved path no longer exists (folder change, removed file) — fall back to the
-        // system-default entry, which we guarantee is always at index 0.
-        return AvailableSounds[0];
+
+        // Ring08 missing (unusual): use the first non-Browse entry, or synthesize a Ring08
+        // option as a last resort so callers always get a usable selection.
+        return AvailableSounds.FirstOrDefault(s => !s.IsBrowse)
+            ?? SoundLibrary.CreateCustom(SoundLibrary.FallbackFilePath);
     }
 
     // ---- Two-way bindable properties ----
@@ -454,7 +494,15 @@ public class MainViewModel : ObservableObject
         else FlashColorB = hex;
     }
 
-    public IReadOnlyList<SoundLibrary.SoundOption> AvailableSounds { get; }
+    // Observable so the dynamically-added custom entry (from "Browse for a file…")
+    // shows up in the dropdown without rebuilding the whole list.
+    public ObservableCollection<SoundLibrary.SoundOption> AvailableSounds { get; }
+
+    // True while the Browse picker flow is running. The ComboBox re-asserts a row whose
+    // bound source rejected it (the Browse branch never stores Browse into _selectedSound),
+    // which fired the setter with Browse again and opened the picker a second time — this
+    // guard makes the picker open exactly once per click.
+    private bool _browseInProgress;
 
     private SoundLibrary.SoundOption _selectedSound = null!;
     public SoundLibrary.SoundOption SelectedSound
@@ -463,14 +511,107 @@ public class MainViewModel : ObservableObject
         set
         {
             if (value == null || _selectedSound == value) return;
-            // Silence first — before we touch settings or notify the UI. The user's
-            // mental model is "I clicked a new item, the old sound stops now".
-            _preview.Stop();
-            _selectedSound = value;
-            _settings.SoundFilePath = value.FilePath;
+
+            // "Browse for a file…" is an action, not a sound. Defer the picker so it runs
+            // *after* WPF finishes committing this selection change — opening a modal dialog
+            // synchronously from inside the ComboBox's SelectionChanged re-enters its
+            // selection machinery. The guard drops any re-assertion of the Browse row while
+            // the flow is in progress; BrowseForCustomSound re-selects the real item at the end.
+            if (value.IsBrowse)
+            {
+                if (_browseInProgress) return;
+                _browseInProgress = true;
+
+                var dispatcher = System.Windows.Application.Current?.Dispatcher;
+                if (dispatcher != null)
+                    dispatcher.BeginInvoke(new Action(BrowseForCustomSound));
+                else
+                    BrowseForCustomSound();
+                return;
+            }
+
+            ApplySelection(value);
             Raise();
-            Save();
         }
+    }
+
+    /// <summary>
+    /// Commits a real sound choice: stops any preview first (the user's mental model is
+    /// "I picked a new item, the old sound stops now"), records the path, and persists.
+    /// Shared by the dropdown setter and the Browse flow so the two never diverge.
+    /// </summary>
+    private void ApplySelection(SoundLibrary.SoundOption option)
+    {
+        _preview.Stop();
+        _selectedSound = option;
+        _settings.SoundFilePath = option.FilePath;
+        Save();
+    }
+
+    /// <summary>
+    /// Opens the injected file picker. On a valid pick, adopts the file as the current
+    /// sound (adding it to the dropdown if new); on cancel it does nothing. Either way it
+    /// re-asserts <see cref="SelectedSound"/> so the ComboBox snaps off the "Browse…" row
+    /// back to the genuinely selected item. The guard is held until the re-selection has
+    /// been pushed to the control, so a re-asserted Browse row can't relaunch the picker.
+    /// </summary>
+    private void BrowseForCustomSound()
+    {
+        try
+        {
+            var path = _pickAudioFile();
+            if (!string.IsNullOrWhiteSpace(path) && File.Exists(path))
+                ApplySelection(AddOrGetCustomOption(path));
+
+            ReselectCurrentSound();
+        }
+        finally
+        {
+            _browseInProgress = false;
+        }
+    }
+
+    /// <summary>
+    /// Forces the ComboBox back onto <see cref="_selectedSound"/>. A bare
+    /// <c>Raise(nameof(SelectedSound))</c> is ignored when the target item is already in the
+    /// list and unchanged (e.g. re-picking an already-listed file), because the control sees
+    /// no delta to act on. Clearing the selection first and then re-asserting it guarantees a
+    /// real target transition, so the "Browse…" row never stays stuck as the visible choice.
+    /// </summary>
+    private void ReselectCurrentSound()
+    {
+        var current = _selectedSound;
+        _selectedSound = null!;
+        Raise(nameof(SelectedSound));
+        _selectedSound = current;
+        Raise(nameof(SelectedSound));
+    }
+
+    /// <summary>
+    /// Returns the dropdown entry for <paramref name="path"/>, creating one if needed.
+    /// A path already present (built-in or the current custom pick) is reused as-is.
+    /// Otherwise a single custom slot is maintained — any prior custom entry is replaced,
+    /// so repeatedly trying files never grows the list — and inserted just above the
+    /// trailing "Browse…" row.
+    /// </summary>
+    private SoundLibrary.SoundOption AddOrGetCustomOption(string path)
+    {
+        foreach (var o in AvailableSounds)
+        {
+            if (!o.IsBrowse && SoundLibrary.PathsEqual(o.FilePath, path))
+                return o;
+        }
+
+        var previousCustom = AvailableSounds.FirstOrDefault(o => o.IsCustom);
+        if (previousCustom != null) AvailableSounds.Remove(previousCustom);
+
+        var custom = SoundLibrary.CreateCustom(path);
+        var browseIndex = AvailableSounds.Count - 1;
+        var insertAt = browseIndex >= 0 && AvailableSounds[browseIndex].IsBrowse
+            ? browseIndex
+            : AvailableSounds.Count;
+        AvailableSounds.Insert(insertAt, custom);
+        return custom;
     }
 
     private readonly PreviewPlayer _preview;
@@ -508,7 +649,8 @@ public class MainViewModel : ObservableObject
 
     private void PreviewSound(SoundLibrary.SoundOption? sound)
     {
-        if (sound == null) return;
+        // The "Browse…" row is an action, not a sound — nothing to preview on hover.
+        if (sound == null || sound.IsBrowse) return;
         _preview.Play(sound.FilePath);
     }
 

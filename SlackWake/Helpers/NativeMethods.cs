@@ -47,4 +47,19 @@ internal static class NativeMethods
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     public static extern bool SetForegroundWindow(IntPtr hWnd);
+
+    // --- DWM window styling (purely cosmetic) ---------------------------------
+    // Used to give the WinForms tray context menu the rounded corners and dark
+    // backdrop of a modern Windows 11 flyout. None of this touches app behavior.
+
+    public const int DWMWA_USE_IMMERSIVE_DARK_MODE = 20;
+    public const int DWMWA_WINDOW_CORNER_PREFERENCE = 33;
+
+    // DWM_WINDOW_CORNER_PREFERENCE values.
+    public const int DWMWCP_DEFAULT = 0;
+    public const int DWMWCP_ROUND = 2;
+    public const int DWMWCP_ROUNDSMALL = 3;
+
+    [DllImport("dwmapi.dll")]
+    public static extern int DwmSetWindowAttribute(IntPtr hwnd, int attribute, ref int pvAttribute, int cbAttribute);
 }

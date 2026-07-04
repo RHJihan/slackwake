@@ -16,8 +16,9 @@ public class AppSettings
     /// <summary>How long the user must be idle before Slack alerts start firing overlays.</summary>
     public int IdleTimeoutSeconds { get; set; } = 300;
 
-    /// <summary>Register the exe under HKCU\...\Run when true.</summary>
-    public bool StartWithWindows { get; set; } = false;
+    /// <summary>Register the exe under HKCU\...\Run when true. On by default so a fresh
+    /// install keeps watching for pings across reboots without the user opting in.</summary>
+    public bool StartWithWindows { get; set; } = true;
 
     /// <summary>When true, skip showing the settings window on launch (used when auto-started).</summary>
     public bool StartMinimized { get; set; } = false;
@@ -28,20 +29,23 @@ public class AppSettings
     /// <summary>Seconds to wait after the overlay appears before the first sound plays. 0 = immediate.</summary>
     public int SoundDelaySeconds { get; set; } = 5;
 
-    /// <summary>When true, keep replaying the alert sound until the user dismisses the overlay.</summary>
-    public bool SoundLoop { get; set; } = false;
+    /// <summary>When true, keep replaying the alert sound until the user dismisses the overlay.
+    /// On by default so the alert keeps sounding until acknowledged (bounded by the auto-stop
+    /// cap when <see cref="AlertAutoStopEnabled"/> is on).</summary>
+    public bool SoundLoop { get; set; } = true;
 
     /// <summary>
-    /// Full path to the WAV file to play. Empty/null means use the built-in
-    /// <see cref="System.Media.SystemSounds.Exclamation"/> sound. The settings UI
-    /// populates this from C:\Windows\Media but any readable .wav path works.
+    /// The alert sound to play: a full path to an audio file. The settings UI lists files from
+    /// C:\Windows\Media and lets the user browse for a custom file anywhere; any path playable
+    /// by <see cref="System.Windows.Media.MediaPlayer"/> (wav, mp3, wma, m4a, …) works. Blank,
+    /// or a saved path that no longer exists, falls back to SlackWake's default (Ring08.wav).
     /// </summary>
     public string SoundFilePath { get; set; } = string.Empty;
 
     /// <summary>Strobe the overlay between two contrasting colors so the alert is
-    /// hard to ignore from across the room. Off by default — some users find it
-    /// distracting or uncomfortable.</summary>
-    public bool FlashEnabled { get; set; } = false;
+    /// hard to ignore from across the room. On by default so the alert is maximally
+    /// noticeable out of the box; users who find it distracting can turn it off.</summary>
+    public bool FlashEnabled { get; set; } = true;
 
     /// <summary>Half-cycle duration of the flash, in milliseconds — the time the
     /// background takes to fade from one color to the other. A full on/off cycle
@@ -58,13 +62,15 @@ public class AppSettings
     /// <summary>When true, the continuous alerts self-stop after
     /// <see cref="AlertMaxDurationSeconds"/>, even if the overlay is never dismissed.
     /// Shared by the looping sound and the visual flash so a single cap governs how
-    /// long an unattended alert keeps running.</summary>
-    public bool AlertAutoStopEnabled { get; set; } = false;
+    /// long an unattended alert keeps running. On by default so an unattended alert
+    /// can't run indefinitely.</summary>
+    public bool AlertAutoStopEnabled { get; set; } = true;
 
     /// <summary>Cap, in seconds, on how long continuous alerts run when
     /// <see cref="AlertAutoStopEnabled"/> is on. Applies to the looping sound, and
-    /// to the visual flash when <see cref="AlertAutoStopIncludesVisual"/> is on.</summary>
-    public int AlertMaxDurationSeconds { get; set; } = 60;
+    /// to the visual flash when <see cref="AlertAutoStopIncludesVisual"/> is on.
+    /// Defaults to 10 minutes.</summary>
+    public int AlertMaxDurationSeconds { get; set; } = 600;
 
     /// <summary>When true, the auto-stop cap silences the looping sound after
     /// <see cref="AlertMaxDurationSeconds"/>; when false the sound keeps looping until

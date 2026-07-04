@@ -538,10 +538,19 @@
                                                            FontSize="18"/>
                                         </ui:Button.Icon>
                                     </ui:Button>
+                                    <!-- Cap the drop-down at ~9 rows and force a persistent
+                                         scrollbar. WPF-UI's default DynamicScrollViewer hides
+                                         the thin Fluent bar at rest, which reads as "no
+                                         scrollbar" and leaves the mouse wheel as the only way
+                                         to scroll a long list. VerticalScrollBarVisibility=Visible
+                                         (honored via the template's ScrollViewer TemplateBinding)
+                                         keeps a standard, grabbable scrollbar on screen. -->
                                     <ComboBox ItemsSource="{Binding AvailableSounds}"
                                               SelectedItem="{Binding SelectedSound}"
                                               DisplayMemberPath="DisplayName"
                                               VerticalAlignment="Center"
+                                              MaxDropDownHeight="300"
+                                              ScrollViewer.VerticalScrollBarVisibility="Visible"
                                               helpers:SoundHoverPreviewBehavior.PreviewCommand="{Binding PreviewSoundCommand}"
                                               helpers:SoundHoverPreviewBehavior.StopCommand="{Binding StopPreviewCommand}"
                                               helpers:SoundHoverPreviewBehavior.DelayMilliseconds="200"/>
