@@ -84,7 +84,7 @@ Crucially, **SlackWake never talks to Slack's servers.** It does not use the Sla
 1. **`IdleMonitorService`** polls the Win32 `GetLastInputInfo` API once per second to determine how long it's been since any keyboard/mouse input system-wide. When that exceeds your idle timeout, SlackWake becomes *active (armed)*.
 2. **`SlackMonitorService`** requests notification-listener access once, then polls `UserNotificationListener.GetNotificationsAsync()` every ~1.5 seconds. New toasts whose source app matches "Slack" are parsed into a `SlackEvent` (sender/channel + body).
 3. **`MainViewModel`** is the gate. A Slack event only becomes an overlay if monitoring is enabled **and** you're currently idle **and** it passes both keyword filters — i.e. it matches the allow-list (when that filter is on) **and** does *not* match the mute-list (when that filter is on). The gate is evaluated on the UI thread to avoid races with a concurrent disable.
-4. **`App.ShowOverlay`** opens one fullscreen `OverlayWindow` per monitor, plays the sound on the primary overlay only, and strobes the flash on all of them. Closing any overlay tears down the whole set.
+4. **`App.ShowOverlay`** opens one fullscreen `OverlayWindow` per monitor, plays the sound on the primary overlay only, and strobes the flash on all of them. Closing any overlay tears down the whole set. While the set is open, **`KeyboardCaptureHook`** installs a low-level keyboard hook so any key dismisses it even when Windows' foreground lock leaves focus with another app; the dismissing keystroke is swallowed so it never leaks into that app.
 
 > **Why polling, not the `NotificationChanged` event?** For unpackaged Win32/WPF apps the event-based path reports access as `Allowed` but frequently never fires. `GetNotificationsAsync` reads the same data and works reliably; the ~1.5s latency is invisible for an "I walked away" alert.
 
@@ -300,7 +300,7 @@ SlackWake/
     │   ├── app.ico                    # App / taskbar / window icon
     │   └── generate-app-icon.ps1      # Regenerates app.ico from the bell geometry
     ├── Helpers/
-    │   ├── NativeMethods.cs           # Win32 P/Invoke (idle, MoveWindow, foreground, icons)
+    │   ├── NativeMethods.cs           # Win32 P/Invoke (idle, MoveWindow, foreground, keyboard hook, icons)
     │   ├── ColorUtil.cs               # Hex parsing + WCAG contrast for flash colors
     │   ├── Log.cs                     # Capped append-only debug log
     │   ├── TrayIconFactory.cs         # Renders the 3 tray-icon states in-memory (GDI+)
@@ -316,6 +316,7 @@ SlackWake/
     │   ├── SoundLibrary.cs            # Enumerate + one-shot play of WAVs
     │   ├── PreviewPlayer.cs           # Stateful preview transport (play/stop/IsPlaying)
     │   ├── LoopingSoundPlayer.cs      # Gapped looping playback w/ optional cap
+    │   ├── KeyboardCaptureHook.cs     # System-wide key capture while the overlay is open
     │   └── StartupService.cs          # HKCU Run-key toggle
     ├── ViewModels/
     │   ├── ObservableObject.cs        # Minimal INotifyPropertyChanged base
@@ -351,7 +352,7 @@ SlackWake is designed to be privacy-preserving by construction:
 | --- | --- |
 | Status says *"Notification access …"* and no overlays ever fire | Listener access wasn't granted. *Settings → Privacy &amp; security → Notifications → Let apps access your notifications.* Then toggle *Enable monitoring* off/on. |
 | Overlays never appear even when idle | (1) Slack isn't using Windows notifications — set *Slack → Preferences → Notifications → Use Windows notifications.* (2) Slack is in DND / channel muted — nothing to listen for. (3) You aren't actually idle yet (check the idle timeout). |
-| Overlay appears but `Esc`/keys don't dismiss it | Usually transient focus loss. Click the overlay once, then keys work. SlackWake force-foregrounds the window, but click is always reliable. |
+| Overlay appears but `Esc`/keys don't dismiss it | SlackWake captures the keyboard system-wide (low-level hook) while an overlay is open, so this shouldn't depend on focus. If `debug.log` shows `[KeyboardCapture] SetWindowsHookEx failed`, it falls back to window focus — click the overlay once, then keys work. Keys typed into an elevated (admin) app can't be captured by a non-elevated SlackWake. |
 | Sound doesn't play | Check *Sound alert* is on and a valid sound is selected. Empty/missing paths fall back to the system Exclamation sound; if your selected `.wav` was deleted, re-pick one. Only the **primary** monitor's overlay plays sound (by design). |
 | Flash doesn't show | Flash is **off by default** — enable *Visual flash*. Note sound and flash both wait out the *Alert delay*. |
 | Keyword mute isn't working | Ensure *Mute by keyword* is on. Matching is substring + case-insensitive across sender, channel, and message text. For a phrase containing a comma, wrap it in `"double quotes"`. |

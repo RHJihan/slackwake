@@ -44,6 +44,11 @@ public partial class App : System.Windows.Application
     private bool _overlayOpen;
     private readonly List<OverlayWindow> _activeOverlays = new();
 
+    // Captures the keyboard system-wide while an overlay set is open, so any key
+    // dismisses it even when Windows' foreground lock leaves focus with another app.
+    // One instance per overlay set; null while no overlay is showing.
+    private KeyboardCaptureHook? _keyboardCapture;
+
     private void OnStartup(object sender, StartupEventArgs e)
     {
         // Composition root — no DI container needed for an app this small.
@@ -324,10 +329,23 @@ public partial class App : System.Windows.Application
             _activeOverlays.Add(w);
         }
         _activeOverlays[0].Activate();
+
+        // Focus alone is unreliable here: SlackWake didn't receive the user's last
+        // input, so Windows may refuse to hand it the foreground. Capture the keyboard
+        // directly; if the hook can't be installed, the overlay's own key handlers
+        // (fed by the foreground attempt above) remain the fallback.
+        var capture = new KeyboardCaptureHook();
+        if (capture.Start())
+        {
+            capture.KeyPressed += CloseAllOverlays;
+            _keyboardCapture = capture;
+        }
     }
 
     private void CloseAllOverlays()
     {
+        StopKeyboardCapture();
+
         var snapshot = _activeOverlays.ToArray();
         _activeOverlays.Clear();
         foreach (var o in snapshot)
@@ -337,10 +355,19 @@ public partial class App : System.Windows.Application
         _overlayOpen = false;
     }
 
+    private void StopKeyboardCapture()
+    {
+        if (_keyboardCapture == null) return;
+        _keyboardCapture.KeyPressed -= CloseAllOverlays;
+        _keyboardCapture.Stop();
+        _keyboardCapture = null;
+    }
+
     protected override void OnExit(ExitEventArgs e)
     {
         if (_vm != null) _vm.PropertyChanged -= OnViewModelPropertyChanged;
         _vm?.Stop();
+        StopKeyboardCapture();
         if (_tray != null)
         {
             _tray.Visible = false;

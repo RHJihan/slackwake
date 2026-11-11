@@ -155,11 +155,13 @@ public partial class OverlayWindow : Window
 
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
-        // The overlay is shown by a tray-process from idle state, so Windows refuses
-        // to give us foreground via Activate() alone — the window appears on top
-        // because Topmost=true, but keyboard focus stays with the previously-focused
-        // app and ESC / any key would do nothing. SetForegroundWindow is the
-        // reliable escape hatch; Keyboard.Focus then routes input into the window.
+        // Best-effort foreground grab. The overlay is shown by a tray process from
+        // idle state, and Windows' foreground lock often refuses even
+        // SetForegroundWindow then — the window still appears on top (Topmost) but
+        // focus stays with the previously-focused app. Key dismissal therefore does
+        // not depend on this: App captures the keyboard system-wide via
+        // KeyboardCaptureHook while the overlay is open. Focus is still taken when
+        // Windows allows it so the key handlers below work if that hook is unavailable.
         var hwnd = new WindowInteropHelper(this).Handle;
         NativeMethods.SetForegroundWindow(hwnd);
         Activate();
@@ -325,6 +327,9 @@ public partial class OverlayWindow : Window
 
     // ---- Input ----
 
+    // Fallback key handlers: they only fire when this window has keyboard focus,
+    // which App's KeyboardCaptureHook normally makes unnecessary (it swallows keys
+    // before they reach any window). Mouse clicks always land here directly.
     private void Window_KeyDown(object sender, KeyEventArgs e) => Close();
     private void Window_TextInput(object sender, TextCompositionEventArgs e) => Close();
     private void Window_MouseDown(object sender, MouseButtonEventArgs e) => Close();
