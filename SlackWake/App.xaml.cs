@@ -280,6 +280,10 @@ public partial class App : System.Windows.Application
         _overlayOpen = true;
         _activeOverlays.Clear();
 
+        // If Windows has turned the monitor off for power saving, turn it back on
+        // and keep it on until the overlay is dismissed.
+        DisplayWake.Acquire();
+
         // Snapshot sound + flash settings once so every overlay in this fan-out
         // agrees, even if the user toggles the settings mid-alert. The "alert
         // delay" governs both sound and flash — they fire together.
@@ -352,6 +356,7 @@ public partial class App : System.Windows.Application
         {
             if (o.IsVisible) o.Close();
         }
+        DisplayWake.Release();
         _overlayOpen = false;
     }
 
@@ -368,6 +373,7 @@ public partial class App : System.Windows.Application
         if (_vm != null) _vm.PropertyChanged -= OnViewModelPropertyChanged;
         _vm?.Stop();
         StopKeyboardCapture();
+        DisplayWake.Release();
         if (_tray != null)
         {
             _tray.Visible = false;
