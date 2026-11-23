@@ -48,6 +48,10 @@ public class MainViewModel : ObservableObject
     // configured timeout? SlackWake's own "active vs idle" state is derived from
     // this (see IsActive) — when the user is idle, SlackWake is active (armed).
     private bool _userIdle;
+
+    // Whether the monitoring schedule (if on) allows alerts right now. Refreshed on the
+    // 1 Hz idle tick and whenever the schedule changes; alert decisions re-check the clock.
+    private bool _inSchedule = true;
     private string _status = "Initializing";
     private string _slackConnectionStatus = "Disconnected";
 
@@ -96,6 +100,9 @@ public class MainViewModel : ObservableObject
         PickFlashColorACommand = new RelayCommand(() => PickFlashColor(isA: true));
         PickFlashColorBCommand = new RelayCommand(() => PickFlashColor(isA: false));
         TestOverlayCommand = new RelayCommand(TestOverlay);
+
+        Schedule = new ScheduleViewModel(_settings, Save, RefreshSchedule);
+        _inSchedule = _settings.InSchedule(DateTimeOffset.Now);
     }
 
     public ICommand TestOverlayCommand { get; }
@@ -675,7 +682,7 @@ public class MainViewModel : ObservableObject
     /// SlackWake is active (armed) precisely when the user is idle.</summary>
     public Brush StatusBrush =>
         !Enabled ? DisabledBrush
-        : _userIdle ? ActiveBrush
+        : IsActive ? ActiveBrush
         : IdleBrush;
 
     private static Brush FreezeBrush(System.Windows.Media.Color c)
@@ -717,10 +724,27 @@ public class MainViewModel : ObservableObject
     /// the configured timeout. Exposed so the tray icon can flip to its active
     /// (armed) state in lockstep. When false, SlackWake is idle (alerts paused
     /// because the user is at the keyboard).</summary>
-    public bool IsActive => _userIdle;
+    public bool IsActive => _userIdle && _inSchedule;
+
+    /// <summary>"Monitor on a schedule" settings and live text (Schedule tab).</summary>
+    public ScheduleViewModel Schedule { get; }
+
+    /// <summary>Re-evaluates the schedule against the clock; flips status/tray on a change.</summary>
+    private void RefreshSchedule()
+    {
+        var inSchedule = _settings.InSchedule(DateTimeOffset.Now);
+        if (inSchedule == _inSchedule) return;
+        _inSchedule = inSchedule;
+        Log.Write($"schedule -> {(_inSchedule ? "inside window" : "outside window")}");
+        Raise(nameof(IsActive));
+        RecomputeStatus();
+    }
 
     private void OnIdleTick(TimeSpan idle)
     {
+        Schedule.Tick();
+        RefreshSchedule();
+
         var userIdle = idle.TotalSeconds >= _settings.IdleTimeoutSeconds;
         if (userIdle == _userIdle) return;
         _userIdle = userIdle;
@@ -749,6 +773,14 @@ public class MainViewModel : ObservableObject
             if (!Enabled || !_userIdle)
             {
                 Log.Write("  -> suppressed (slackwake idle or disabled)");
+                return;
+            }
+
+            // Outside the user's monitoring schedule nothing fires, even when away.
+            // Checked against the clock now, not the cached tick value.
+            if (!_settings.InSchedule(DateTimeOffset.Now))
+            {
+                Log.Write("  -> suppressed (outside the monitoring schedule)");
                 return;
             }
 
@@ -926,12 +958,15 @@ public class MainViewModel : ObservableObject
         // listener error, still connecting…), surface that instead of the
         // operational explanation — the user needs to see and fix it.
         if (_slackConnectionStatus != ListenerHealthyStatus)
-            return (_userIdle ? "Active — " : "Idle — ") + _slackConnectionStatus;
+            return (IsActive ? "Active — " : "Idle — ") + _slackConnectionStatus;
 
         // Happy path: explain what the current state actually means for alerts,
         // named from SlackWake's own perspective. SlackWake is "active" when it is
         // armed to fire (the user is away) and "idle" when it is standing down
         // (the user is at the keyboard, so Slack's own notifications suffice).
+        if (!_inSchedule)
+            return "Idle: outside your monitoring schedule";
+
         if (!_userIdle)
             return "Idle: alerts paused while using the computer";
 

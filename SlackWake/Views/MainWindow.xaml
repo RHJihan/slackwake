@@ -367,6 +367,184 @@
                 </StackPanel>
             </TabItem>
 
+            <!-- ============================ Schedule ============================ -->
+            <TabItem>
+                <TabItem.Header>
+                    <StackPanel Orientation="Horizontal">
+                        <ui:SymbolIcon Symbol="CalendarClock24" Style="{StaticResource NavIcon}"/>
+                        <ui:TextBlock Text="Schedule" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </TabItem.Header>
+                <StackPanel DataContext="{Binding Schedule}">
+                    <ui:TextBlock Text="Schedule" Style="{StaticResource PageTitle}"/>
+                    <ui:TextBlock Text="Only alert during these hours. Outside them SlackWake stays quiet, even when you're away."
+                                  Style="{StaticResource Caption}" Margin="0,0,0,18"/>
+
+                    <!-- Master switch for the schedule -->
+                    <ui:Card Padding="16">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <ui:SymbolIcon Grid.Column="0" Symbol="CalendarClock24" FontSize="20"
+                                           Margin="0,0,14,0" VerticalAlignment="Center"/>
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                <ui:TextBlock Text="Monitor on a schedule" FontTypography="Body"/>
+                                <ui:TextBlock Text="Set the hours for each day. A window that ends at or before its start runs into the next day (11:00 PM – 7:00 AM)."
+                                              Style="{StaticResource Caption}"/>
+                            </StackPanel>
+                            <ui:ToggleSwitch Grid.Column="2" VerticalAlignment="Center"
+                                             IsChecked="{Binding Enabled}"/>
+                        </Grid>
+                    </ui:Card>
+
+                    <!-- Everything below only matters while the schedule is on: hidden, not greyed out. -->
+                    <StackPanel Visibility="{Binding Enabled, Converter={StaticResource BoolToVis}}">
+
+                        <!-- Live summary: on/off now and when that changes -->
+                        <ui:InfoBar Margin="0,12,0,0"
+                                    IsOpen="True"
+                                    IsClosable="False"
+                                    Severity="Informational"
+                                    Title="Right now"
+                                    Message="{Binding SummaryText}"/>
+
+                        <!-- Time zone the hours are in -->
+                        <ui:Card Padding="16" Margin="0,12,0,0">
+                            <StackPanel>
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,2">
+                                    <ui:SymbolIcon Symbol="Earth24" FontSize="18"
+                                                   Margin="0,0,8,0" VerticalAlignment="Center"/>
+                                    <ui:TextBlock Text="Time zone" FontTypography="BodyStrong"
+                                                  VerticalAlignment="Center"/>
+                                </StackPanel>
+                                <ui:TextBlock Text="The hours below are in this time zone. Daylight saving is handled automatically."
+                                              Style="{StaticResource Caption}" Margin="26,0,0,8"/>
+                                <ComboBox ItemsSource="{Binding ZoneOptions}"
+                                          DisplayMemberPath="Label"
+                                          SelectedItem="{Binding SelectedZone}"
+                                          IsTextSearchEnabled="True"
+                                          TextSearch.TextPath="Label"
+                                          AutomationProperties.Name="Time zone"
+                                          MaxDropDownHeight="360"/>
+                                <ui:TextBlock Text="{Binding ZoneNowText}"
+                                              Style="{StaticResource Caption}" Margin="0,8,0,0"
+                                              Visibility="{Binding ShowZoneNow, Converter={StaticResource BoolToVis}}"/>
+                            </StackPanel>
+                        </ui:Card>
+
+                        <!-- One row per day, in the culture's week order -->
+                        <ui:Card Padding="16" Margin="0,12,0,0">
+                            <StackPanel>
+                                <ui:TextBlock Text="Days and hours" FontTypography="BodyStrong" Margin="0,0,0,8"/>
+                                <ItemsControl ItemsSource="{Binding Days}" Focusable="False">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Grid Margin="0,6">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="120"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+                                                <Grid.RowDefinitions>
+                                                    <RowDefinition Height="Auto"/>
+                                                    <RowDefinition Height="Auto"/>
+                                                    <RowDefinition Height="Auto"/>
+                                                </Grid.RowDefinitions>
+
+                                                <ui:TextBlock Grid.Column="0" Text="{Binding DayName}"
+                                                              FontTypography="Body" VerticalAlignment="Center"/>
+
+                                                <!-- Start – End, only while the day is on -->
+                                                <StackPanel Grid.Column="1" Orientation="Horizontal"
+                                                            Visibility="{Binding Enabled, Converter={StaticResource BoolToVis}}">
+                                                    <ComboBox ItemsSource="{Binding TimeOptions}"
+                                                              DisplayMemberPath="Label"
+                                                              SelectedValuePath="Minute"
+                                                              SelectedValue="{Binding StartMinute}"
+                                                              IsTextSearchEnabled="True"
+                                                              TextSearch.TextPath="Label"
+                                                              MinWidth="120" MaxDropDownHeight="320"
+                                                              AutomationProperties.Name="{Binding DayName, StringFormat='{}{0} start time'}"/>
+                                                    <ui:TextBlock Text="–" Margin="10,0" VerticalAlignment="Center"/>
+                                                    <ComboBox ItemsSource="{Binding TimeOptions}"
+                                                              DisplayMemberPath="Label"
+                                                              SelectedValuePath="Minute"
+                                                              SelectedValue="{Binding EndMinute}"
+                                                              IsTextSearchEnabled="True"
+                                                              TextSearch.TextPath="Label"
+                                                              MinWidth="120" MaxDropDownHeight="320"
+                                                              AutomationProperties.Name="{Binding DayName, StringFormat='{}{0} end time'}"/>
+                                                </StackPanel>
+
+                                                <!-- Copy these hours to other days (only meaningful while the day is on) -->
+                                                <ui:Button Grid.Column="2" Margin="8,0"
+                                                           Appearance="Transparent"
+                                                           Icon="{ui:SymbolIcon Copy24}"
+                                                           Content="Copy to…"
+                                                           VerticalAlignment="Center"
+                                                           Command="{Binding ToggleCopyCommand}"
+                                                           ToolTip="Copy these hours to other days"
+                                                           AutomationProperties.Name="{Binding DayName, StringFormat='Copy {0} hours to other days'}"
+                                                           Visibility="{Binding Enabled, Converter={StaticResource BoolToVis}}"/>
+
+                                                <ui:ToggleSwitch Grid.Column="3" VerticalAlignment="Center"
+                                                                 IsChecked="{Binding Enabled}"
+                                                                 AutomationProperties.Name="{Binding DayName, StringFormat='Monitor on {0}'}"/>
+
+                                                <!-- "Ends Tuesday (next day)" / "On for 24 hours" -->
+                                                <ui:TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding Note}"
+                                                              Style="{StaticResource Caption}" Margin="0,4,0,0"/>
+
+                                                <!-- Inline "Copy to" panel: pick days, or Weekdays / All days, then Apply -->
+                                                <Border Grid.Row="2" Grid.ColumnSpan="4" Margin="0,8,0,4" Padding="12"
+                                                        CornerRadius="6"
+                                                        Background="{DynamicResource CardBackgroundFillColorSecondaryBrush}"
+                                                        BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                                                        BorderThickness="1"
+                                                        Visibility="{Binding IsCopyOpen, Converter={StaticResource BoolToVis}}">
+                                                    <StackPanel>
+                                                        <ui:TextBlock Text="{Binding CopyPrompt}" FontTypography="BodyStrong" Margin="0,0,0,8"/>
+                                                        <ItemsControl ItemsSource="{Binding CopyTargets}" Focusable="False">
+                                                            <ItemsControl.ItemsPanel>
+                                                                <ItemsPanelTemplate>
+                                                                    <WrapPanel/>
+                                                                </ItemsPanelTemplate>
+                                                            </ItemsControl.ItemsPanel>
+                                                            <ItemsControl.ItemTemplate>
+                                                                <DataTemplate>
+                                                                    <ToggleButton Content="{Binding ShortName}"
+                                                                                  IsChecked="{Binding IsSelected}"
+                                                                                  MinWidth="56" Margin="0,0,6,6"
+                                                                                  AutomationProperties.Name="{Binding FullName}"/>
+                                                                </DataTemplate>
+                                                            </ItemsControl.ItemTemplate>
+                                                        </ItemsControl>
+                                                        <DockPanel Margin="0,4,0,0" LastChildFill="False">
+                                                            <ui:Button DockPanel.Dock="Left" Content="Weekdays"
+                                                                       Command="{Binding SelectWeekdaysCommand}"/>
+                                                            <ui:Button DockPanel.Dock="Left" Content="All days" Margin="6,0,0,0"
+                                                                       Command="{Binding SelectAllCommand}"/>
+                                                            <ui:Button DockPanel.Dock="Right" Content="Apply" Appearance="Primary" Margin="6,0,0,0"
+                                                                       Command="{Binding ApplyCopyCommand}"/>
+                                                            <ui:Button DockPanel.Dock="Right" Content="Cancel"
+                                                                       Command="{Binding CancelCopyCommand}"/>
+                                                        </DockPanel>
+                                                    </StackPanel>
+                                                </Border>
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </ui:Card>
+                    </StackPanel>
+                </StackPanel>
+            </TabItem>
+
             <!-- ============================ Filters ============================ -->
             <TabItem>
                 <TabItem.Header>

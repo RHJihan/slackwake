@@ -118,4 +118,30 @@ public class AppSettings
     /// Blank entries are ignored, as is any entry prefixed with <c>//</c> — a commented-out
     /// keyword that stays in the list but is skipped. Only consulted when <see cref="KeywordAllowEnabled"/>.</summary>
     public string KeywordAllowText { get; set; } = string.Empty;
+
+    // ---- Monitoring schedule ----
+    // Same keys as the Android app, so a schedule survives a backup restored on either.
+
+    /// <summary>Only alert inside the per-day windows in <see cref="ScheduleDays"/>. Checked
+    /// when a ping arrives, so it is exact. Off by default.</summary>
+    public bool ScheduleEnabled { get; set; } = false;
+
+    /// <summary>Monday..Sunday windows; a window ending at or before its start runs into the
+    /// next day. Defaults to weekdays 09:00–18:00.</summary>
+    public List<DayWindow> ScheduleDays { get; set; } = WeeklySchedule.CreateDefault();
+
+    /// <summary>IANA zone ID the schedule's times are in ("America/New_York"); empty = this
+    /// computer's time zone. Stored as an ID, not an offset, so the zone's DST rules apply.</summary>
+    public string ScheduleTimeZone { get; set; } = string.Empty;
+
+    /// <summary>True when the schedule (if on) allows alerts at the instant <paramref name="nowUtc"/>.</summary>
+    public bool InSchedule(DateTimeOffset nowUtc) =>
+        !ScheduleEnabled || WeeklySchedule.IsActive(ScheduleDays, ScheduleZones.LocalTime(ScheduleTimeZone, nowUtc));
+
+    /// <summary>Repairs schedule data from a hand-edited or older settings file.</summary>
+    public void NormalizeSchedule()
+    {
+        ScheduleDays = WeeklySchedule.Normalize(ScheduleDays);
+        ScheduleTimeZone = ScheduleZones.Sanitize(ScheduleTimeZone);
+    }
 }

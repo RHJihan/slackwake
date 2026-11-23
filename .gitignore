@@ -1,82 +1,68 @@
-# Visual Studio / .NET
+# Repository-wide ignores + the Windows app (SlackWake.sln, SlackWake/, SlackWake.Tests/).
+# The Android app has its own SlackWake.Android/.gitignore.
+#
+# Patterns are kept specific on purpose: SDK-style .NET projects build only into bin/
+# and obj/, so catch-alls like "debug/", "release/" or "log/" (from the old Visual
+# Studio template) are not needed and would hide unrelated folders in the repo.
+
+# ---- .NET build output ----
 [Bb]in/
 [Oo]bj/
-[Dd]ebug/
-[Rr]elease/
-[Dd]ebugPublic/
-[Dd]istribution/
-[Ll]og/
-[Ll]ogs/
-[Tt]emp/
-[Tt]mp/
-x64/
-x86/
-[Aa][Rr][Mm]/
-[Aa][Rr][Mm]64/
-bld/
-[Oo]ut/
-[Bb]uilds/
-artifacts/
-
-# Build outputs
-dist/
 publish/
-*.pdb
-*.exe
-*.dll
-*.cache
-*.swp
-*.user
-*.suo
-*.userprefs
-*.userosscache
-*.sln.docstates
-
-# Visual Studio
-.vs/
-*.vcxproj.user
-*.VisualState.xml
-*.TestResult.xml
-
-# Rider / ReSharper
-.idea/
-*.DotSettings.user
-
-# VS Code
-.vscode/
-
-# NuGet
 *.nupkg
 *.snupkg
+
+# ---- Visual Studio / Rider / VS Code ----
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+*.rsuser
+.idea/
+*.DotSettings.user
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+
+# ---- NuGet (restored on build) ----
 .nuget/
 packages/
-!packages/build/
 project.lock.json
 project.fragment.lock.json
 *.nuget.props
 *.nuget.targets
 
-# MSBuild
+# ---- MSBuild logs ----
 *.binlog
 msbuild.log
 msbuild.err
 msbuild.wrn
 
-# Coverage / Test
+# ---- Test results and coverage ----
+TestResults/
+[Tt]est[Rr]esult*/
+*.trx
 coverage*.json
 coverage*.xml
 coverage*.info
 *.coverage
 *.coveragexml
-TestResults/
 
-# OS
+# ---- Debug symbols / native leftovers ----
+*.pdb
+*.ilk
+
+# ---- Runtime logs and editor temp files ----
+*.log
+*.tmp
+*.bak
+*.swp
+*~
+
+# ---- OS ----
 Thumbs.db
 ehthumbs.db
 Desktop.ini
+$RECYCLE.BIN/
 .DS_Store
-
-# Misc
-*.bak
-*.tmp
-*.log

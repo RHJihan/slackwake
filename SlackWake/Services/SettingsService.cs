@@ -32,7 +32,10 @@ public class SettingsService
             if (File.Exists(FilePath))
             {
                 var json = File.ReadAllText(FilePath);
-                return JsonSerializer.Deserialize<AppSettings>(json) ?? new AppSettings();
+                var loaded = JsonSerializer.Deserialize<AppSettings>(json) ?? new AppSettings();
+                // Repair schedule data from a hand-edited or older file (7 days, valid zone).
+                loaded.NormalizeSchedule();
+                return loaded;
             }
         }
         catch

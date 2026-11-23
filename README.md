@@ -63,6 +63,7 @@ Crucially, **SlackWake never talks to Slack's servers.** It does not use the Sla
 - **Alert only by keyword (allow-list)** — The inverse: wake you *only* for pings matching this separate list, and stay silent for everything else. For "while I'm away, only ping me for on-call/incidents." When active it's also called out in the status line. Both filters are independent and can run together: a ping wakes you only if it's **allowed and not muted** (muting wins on overlap). Both lists are comma- or newline-separated; wrap a phrase in double quotes to match it verbatim.
 - **System-tray native** — Lives in the notification area with an at-a-glance status icon: green = armed, white = idle/paused, slashed = disabled. Left-click opens settings; right-click for the menu.
 - **Start with Windows** — Optional per-user auto-launch at sign-in (silent, into the tray).
+- **Monitoring schedule** — Optionally alert only during set hours, with a separate window for each day of the week (e.g. weekdays 9 AM – 6 PM, or every night 11 PM – 7 AM). A window that ends at or before its start runs into the next day. Times can follow this computer's time zone or a chosen one (stored as an IANA ID such as `America/New_York`, so daylight saving is handled); a chosen zone shows its current time. **Copy to…** on any day applies its hours to selected days (or Weekdays / All days) in one step. Uses the same settings keys as SlackWake for Android.
 - **Test overlay** — A one-click button to preview your overlay with current sound/flash settings, bypassing the idle gate.
 - **Fluent design** — Native Windows 11 Fluent 2 look with Mica backdrop, light/dark theme that tracks your OS setting live, and rounded corners.
 - **Zero cloud, zero account** — No Slack token, no API calls, no telemetry. Settings stay on your machine.
@@ -71,10 +72,11 @@ Crucially, **SlackWake never talks to Slack's servers.** It does not use the Sla
 
 ## Screenshots
 <p align="center">
-  <img src="doc/SlackWake1.png" width="300">
-  <img src="doc/SlackWake2.png" width="300">
-  <img src="doc/SlackWake3.png" width="300">
-  <img src="doc/SlackWake4.png" width="300">
+  <img src="doc/general.png" width="300" alt="General">
+  <img src="doc/timing.png" width="300" alt="Idle &amp; timing">
+  <img src="doc/schedule.png" width="300" alt="Schedule">
+  <img src="doc/filters.png" width="300" alt="Filters">
+  <img src="doc/alerts.png" width="300" alt="Alerts">
 </p>
 
 ---
@@ -187,7 +189,10 @@ A diagnostic log is written alongside it at `%AppData%\SlackWake\debug.log` (app
   "KeywordFilterEnabled": false,
   "KeywordFilterText": "",
   "KeywordAllowEnabled": false,
-  "KeywordAllowText": ""
+  "KeywordAllowText": "",
+  "ScheduleEnabled": false,
+  "ScheduleDays": [ { "Enabled": true, "StartMinute": 540, "EndMinute": 1080 }, "… 7 entries, Monday first …" ],
+  "ScheduleTimeZone": ""
 }
 ```
 
@@ -217,6 +222,9 @@ Hand-editing the file while the app is running is safe — the next save from th
 | `KeywordFilterText` | string | `""` | Comma- or newline-separated block-list keywords; case-insensitive substring match against sender + channel + text. Wrap a phrase in `"double quotes"` to match it verbatim (including commas). |
 | `KeywordAllowEnabled` | bool | `false` | **Alert only by keyword** (allow-list). When on, *only* pings matching `KeywordAllowText` alert; everything else is dropped. An **empty `KeywordAllowText` is inert** (never silently mutes everything). Combined with the mute-list, a ping must be allowed **and** not muted. |
 | `KeywordAllowText` | string | `""` | Comma- or newline-separated allow-list keywords; same matching rules as `KeywordFilterText`. |
+| `ScheduleEnabled` | bool | `false` | **Monitor on a schedule.** When on, alerts only fire inside the windows in `ScheduleDays`; outside them the status reads *"Idle: outside your monitoring schedule"* and the tray icon shows idle. Checked when a ping arrives, so it is exact. |
+| `ScheduleDays` | list | Mon–Fri 09:00–18:00, Sat/Sun off | Seven `{Enabled, StartMinute, EndMinute}` entries, **Monday first**; minutes after midnight. A window belongs to the day it starts: if the end is at or before the start it runs into the next day (Mon 23:00–07:00 = Mon 11 PM → Tue 7 AM). Start = end means 24 hours. Overlapping windows merge. Invalid data is repaired on load. |
+| `ScheduleTimeZone` | string | `""` | IANA zone ID the schedule's times are in (e.g. `America/New_York`); empty = this computer's time zone. Stored as an ID, not an offset, so the zone's DST rules apply; an unknown ID falls back to this computer's zone. The picker shows Windows' own zone list. |
 
 ---
 
@@ -308,7 +316,8 @@ SlackWake/
     │   ├── Placeholder.cs             # Top-aligned placeholder for multi-line text boxes
     │   └── SoundHoverPreviewBehavior.cs # Hover/arrow-to-preview for the sound dropdown
     ├── Models/
-    │   └── AppSettings.cs             # Persisted settings POCO
+    │   ├── AppSettings.cs             # Persisted settings POCO
+    │   └── Schedule.cs                # Monitoring schedule rules (per-day windows, time zone)
     ├── Services/
     │   ├── SettingsService.cs         # JSON load/save (best-effort)
     │   ├── IdleMonitorService.cs      # 1 Hz idle-time poller
@@ -321,7 +330,8 @@ SlackWake/
     ├── ViewModels/
     │   ├── ObservableObject.cs        # Minimal INotifyPropertyChanged base
     │   ├── RelayCommand.cs            # ICommand helpers (parameterless + generic)
-    │   └── MainViewModel.cs           # Glue: settings ⇄ services ⇄ UI
+    │   ├── MainViewModel.cs           # Glue: settings ⇄ services ⇄ UI
+    │   └── ScheduleViewModel.cs       # Schedule tab: day rows, time zone, live summary
     └── Views/
         ├── MainWindow.xaml(.cs)       # Fluent settings window (hides to tray on close)
         └── OverlayWindow.xaml(.cs)    # Fullscreen topmost alert (sound + flash)
@@ -372,7 +382,7 @@ SlackWake is designed to be privacy-preserving by construction:
 - **`UserNotificationListener` requires Windows 10 1903+ (build 18362).** Older builds can't listen for notifications.
 - **Listener sees all apps.** The OS notification stream isn't Slack-scoped; SlackWake filters by app name/AUMID containing "slack." An app that impersonates Slack's display name could theoretically be matched (low risk for a local-only desktop tool).
 - **Custom (non-`C:\Windows\Media`) sounds** can be used by hand-editing `SoundFilePath`, but the UI only enumerates the Windows Media folder.
-- **No automated tests** ship with the project at present.
+- **Tests are limited.** `SlackWake.Tests` (xUnit) covers the monitoring-schedule rules; the rest is verified manually.
 
 ---
 
@@ -381,7 +391,7 @@ SlackWake is designed to be privacy-preserving by construction:
 Contributions are welcome! This is a small, focused codebase that's easy to get into.
 
 1. **Fork** the repository and create a feature branch off `main`.
-2. **Build and run locally** (`dotnet run --project .\SlackWake\SlackWake.csproj`) and verify your change manually — there's currently no test suite, so describe how you tested in the PR.
+2. **Build and run locally** (`dotnet run --project .\SlackWake\SlackWake.csproj`) and verify your change manually; run `dotnet test` for the unit tests in `SlackWake.Tests`. Describe how you tested in the PR.
 3. **Match the existing style:** MVVM with the hand-rolled `ObservableObject`/`RelayCommand`; UI-only logic as attached behaviors in `Helpers/`; no new dependencies unless clearly justified (the project deliberately ships with only `WPF-UI`).
 4. **Keep `AppSettings` stable** — adding optional properties is safe, but renaming/removing them resets existing users' settings. Document new settings in this README's [setting reference](#setting-reference).
 5. **Open a pull request** with a clear description of the change and rationale.
